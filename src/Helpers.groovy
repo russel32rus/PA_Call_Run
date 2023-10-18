@@ -71,9 +71,11 @@ import static com.experian.eda.enterprise.properties.PropertiesRegistry.*
 class CustomUtils {
 
     static final Logger log = LoggerFactory.getLogger(this)
-
+    public static String dbConnName, dbConnsPath, stageCd
     public static int traceFlags
     public static int batchThreads
+    public static PACalc paCalc = null
+    public static Thread thrCalc = null
     public static int  batchQueueSize
     public static int fetchSize
     public static int rccDbCommitAfter
@@ -664,7 +666,6 @@ class DatabaseHelpers {
     public static final int ORA_MAX_CONN_POOL_SIZE = 20     // Макс. размера пула
     public static final int ORA_ABANDON_CONN_TIMEOUT_SEC = 600
 
-
     static Connection getConnection(DataSource dataSource) {
         log.info("Getting connection...")
         //dataSource = dataSource as BasicDataSource
@@ -780,9 +781,12 @@ class DatabaseHelpers {
         hikariConfig.setAutoCommit(false)
         hikariConfig.setPoolName(poolName)
         hikariConfig.registerMbeans = true
-        hikariConfig.setMinimumIdle(1)
-        hikariConfig.setLeakDetectionThreshold(5000)
-        hikariConfig.addDataSourceProperty("cachePrepStmts", "true");
+        hikariConfig.setMinimumIdle(5)
+        hikariConfig.setMaxLifetime(6000)
+        hikariConfig.setConnectionTestQuery("select 1")
+        hikariConfig.setIdleTimeout(5000)
+        hikariConfig.setLeakDetectionThreshold(60000)
+         hikariConfig.addDataSourceProperty("cachePrepStmts", "true");
         hikariConfig.addDataSourceProperty("prepStmtCacheSize", "250");
         hikariConfig.addDataSourceProperty("prepStmtCacheSqlLimit", "2048");
         if (schema?.trim()) {
@@ -1000,9 +1004,9 @@ class SmProcessingHelpers {
         ps.setLongAtName(SQL_SELECT_PARAM_CUSTOMER_ID, customerId != null ? customerId : null)
     }
 
-    static void openRccRootStatement(String entityName, Long customerId, Long packId, String stageCd) {
+    static void openRccRootStatement(Connection conn, String entityName, Long customerId, Long packId, String stageCd) {
         log.debug("Preparing $entityName select statement... ")
-        NamedPreparedStatement ps = getSmInputStatement(getRccDbConnection(), SQL_TREE_INPUT_ROOT, entityName, false)
+        NamedPreparedStatement ps = getSmInputStatement(conn, SQL_TREE_INPUT_ROOT, entityName, false)
         setRccSelectQueryParams(ps, customerId, packId, stageCd)
         packPreparedStatementsMap.put(entityName, ps)
         log.debug("Done!")
@@ -1029,10 +1033,11 @@ class SmProcessingHelpers {
         }
         rsCust?.close()
         ps?.close()
+
         log.debug("Done!")
     }
 
-    static void openChildInputStatements(Long customerId, Long packId, String stageCd, Long packGroupBy, String parentEntityName, boolean scrollable, boolean ignorePackGroupBy) {
+    static void openChildInputStatements(Connection rccConn, Connection pcsmConn, Long customerId, Long packId, String stageCd, Long packGroupBy, String parentEntityName, boolean scrollable, boolean ignorePackGroupBy) {
         globalConfSqlTreeInput.get(parentEntityName)?.each {
             childEntityName, rccEntity ->
                 if (ignorePackGroupBy || checkEntityIsActive(rccEntity, packGroupBy, stageCd)) {
@@ -1040,7 +1045,7 @@ class SmProcessingHelpers {
                      * Получаем все записи сущности, если она активна
                      *******************************************************************************************************/
                     log.info("Entity [$childEntityName] - proceed to SQL preparation (parentEntityName = $parentEntityName, childEntityName = $childEntityName)...")
-                    Connection connection = (rccEntity.targetDb == RccEntity.RCC_DB ? getRccDbConnection() : getPcsmDbConnection())
+                    Connection connection = (rccEntity.targetDb == RccEntity.RCC_DB ? rccConn : pcsmConn)
 
                     /*MBeanServer mBeanServerREACT = ManagementFactory.getPlatformMBeanServer();
                     poolName = new ObjectName("com.zaxxer.hikari:type=Pool (rcc-pool)")
@@ -1063,9 +1068,12 @@ class SmProcessingHelpers {
                     setRccSelectQueryParams(ps, customerId, packId, stageCd)
                     packPreparedStatementsMap.put(childEntityName, ps)
 
-                    openChildInputStatements(customerId, packId, stageCd, packGroupBy, childEntityName, thisScrollable, ignorePackGroupBy)
+                    openChildInputStatements(rccConn, pcsmConn, customerId, packId, stageCd, packGroupBy, childEntityName, thisScrollable, ignorePackGroupBy)
+                   // (rccEntity.targetDb == RccEntity.RCC_DB ?
+                     //       ((HikariDataSource)rccDataSource).evictConnection(connection) :
+                     //       ((HikariDataSource)pcsmDataSource).evictConnection(connection))
 
-                    //connection.close()
+                   // connection.close()
                 } else {
                     log.info("Entity [$childEntityName] identified as inactive - skipping SQL execution")
 
@@ -1073,8 +1081,8 @@ class SmProcessingHelpers {
         }
     }
 
-    static void openChildInputStatements(Long customerId, Long packId, String stageCd, Long packGroupBy, String parentEntityName, boolean scrollable) {
-        openChildInputStatements(customerId, packId, stageCd, packGroupBy, parentEntityName, scrollable, false)
+    static void openChildInputStatements(Connection rccConn, Connection pcsmConn, Long customerId, Long packId, String stageCd, Long packGroupBy, String parentEntityName, boolean scrollable) {
+        openChildInputStatements(rccConn, pcsmConn, customerId, packId, stageCd, packGroupBy, parentEntityName, scrollable, false)
     }
 
     /*******************************************************************************************************

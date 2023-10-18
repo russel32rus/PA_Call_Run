@@ -428,7 +428,6 @@
       <element id="extracted-dir" path="$PROJECT_DIR$/lib/Framework_Security_Sid_Common_Interfaces_Wrapper-1.14.14-1911-HF001.jar" path-in-jar="/" />
       <element id="extracted-dir" path="$PROJECT_DIR$/lib/org.apache.servicemix.bundles.spring-context-support-4.2.6.RELEASE_1.jar" path-in-jar="/" />
       <element id="extracted-dir" path="$PROJECT_DIR$/lib/Framework_Security_Internal_Authentication_Provider-3.0.12-1911-HF001.jar" path-in-jar="/" />
-      <element id="extracted-dir" path="$PROJECT_DIR$/lib/HikariCP-4.0.3.jar" path-in-jar="/" />
     </root>
   </artifact>
 </component>

@@ -9,6 +9,7 @@
 import com.experian.eda.decisionagent.interfaces.os390.BatchJSEMObjectInterface
 import com.experian.eda.framework.runtime.dynamic.HierarchicalDatasource
 import com.experian.eda.framework.runtime.dynamic.IHData
+import com.zaxxer.hikari.HikariDataSource
 import groovy.transform.CompileStatic
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -202,6 +203,7 @@ class ReadGlobalParams {
         finally {
             rs?.close()
             st?.close()
+           //((HikariDataSource)pcsmDataSource).evictConnection(pcsmConn)
             pcsmConn.close()
         }
 
