@@ -1,0 +1,87 @@
+17:27:33,261 |-INFO in ch.qos.logback.classic.LoggerContext[default] - Could NOT find resource [logback-test.xml]
+17:27:33,261 |-INFO in ch.qos.logback.classic.LoggerContext[default] - Could NOT find resource [logback.groovy]
+17:27:33,261 |-INFO in ch.qos.logback.classic.LoggerContext[default] - Found resource [logback.xml] at [file:/C:/Users/russe/OneDrive/Desktop/PA_Call_Run/out/production/PA_Call_Run/logback.xml]
+17:27:33,322 |-INFO in ch.qos.logback.classic.joran.action.ConfigurationAction - Will scan for changes in [file:/C:/Users/russe/OneDrive/Desktop/PA_Call_Run/out/production/PA_Call_Run/logback.xml] 
+17:27:33,322 |-INFO in ch.qos.logback.classic.joran.action.ConfigurationAction - Setting ReconfigureOnChangeTask scanning period to 5 seconds
+17:27:33,325 |-INFO in ch.qos.logback.classic.joran.action.JMXConfiguratorAction - begin
+17:27:33,352 |-INFO in ch.qos.logback.core.joran.action.ConversionRuleAction - registering conversion word metadata with class [com.experian.eda.enterprise.logging.CxMetadataConverter]
+17:27:33,352 |-INFO in ch.qos.logback.core.joran.action.AppenderAction - About to instantiate appender of type [ch.qos.logback.core.rolling.RollingFileAppender]
+17:27:33,355 |-INFO in ch.qos.logback.core.joran.action.AppenderAction - Naming appender as [transaction-rollingFileAppender]
+17:27:33,365 |-INFO in c.q.l.core.rolling.SizeAndTimeBasedRollingPolicy@932257672 - Archive files will be limited to [1 GB] each.
+17:27:33,372 |-INFO in c.q.l.core.rolling.SizeAndTimeBasedRollingPolicy@932257672 - Will use zip compression
+17:27:33,372 |-INFO in c.q.l.core.rolling.SizeAndTimeBasedRollingPolicy@932257672 - Will use the pattern C:/Users/russe/OneDrive/Desktop/PA_Call_Run/logs/transaction.%d{yyyy-MM-dd}.%i for the active file
+17:27:33,374 |-INFO in ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP@a37aefe - The date pattern is 'yyyy-MM-dd' from file name pattern 'C:/Users/russe/OneDrive/Desktop/PA_Call_Run/logs/transaction.%d{yyyy-MM-dd}.%i.zip'.
+17:27:33,374 |-INFO in ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP@a37aefe - Roll-over at midnight.
+17:27:33,376 |-INFO in ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP@a37aefe - Setting initial period to Tue Sep 05 17:27:33 MSK 2023
+17:27:33,377 |-INFO in ch.qos.logback.core.joran.action.NestedComplexPropertyIA - Assuming default type [ch.qos.logback.classic.encoder.PatternLayoutEncoder] for [encoder] property
+17:27:33,389 |-INFO in ch.qos.logback.core.rolling.RollingFileAppender[transaction-rollingFileAppender] - Active log file name: C:\Users\russe\OneDrive\Desktop\PA_Call_Run/logs/transaction.log
+17:27:33,389 |-INFO in ch.qos.logback.core.rolling.RollingFileAppender[transaction-rollingFileAppender] - File property is set to [C:\Users\russe\OneDrive\Desktop\PA_Call_Run/logs/transaction.log]
+17:27:33,390 |-INFO in ch.qos.logback.core.joran.action.AppenderAction - About to instantiate appender of type [ch.qos.logback.core.rolling.RollingFileAppender]
+17:27:33,390 |-INFO in ch.qos.logback.core.joran.action.AppenderAction - Naming appender as [error-rollingFileAppender]
+17:27:33,392 |-INFO in c.q.l.core.rolling.SizeAndTimeBasedRollingPolicy@1558103808 - Archive files will be limited to [1 GB] each.
+17:27:33,392 |-INFO in c.q.l.core.rolling.SizeAndTimeBasedRollingPolicy@1558103808 - Will use zip compression
+17:27:33,392 |-INFO in c.q.l.core.rolling.SizeAndTimeBasedRollingPolicy@1558103808 - Will use the pattern C:/Users/russe/OneDrive/Desktop/PA_Call_Run/logs/Error.%d{yyyy-MM-dd}.%i for the active file
+17:27:33,393 |-INFO in ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP@6d026701 - The date pattern is 'yyyy-MM-dd' from file name pattern 'C:/Users/russe/OneDrive/Desktop/PA_Call_Run/logs/Error.%d{yyyy-MM-dd}.%i.zip'.
+17:27:33,393 |-INFO in ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP@6d026701 - Roll-over at midnight.
+17:27:33,393 |-INFO in ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP@6d026701 - Setting initial period to Tue Sep 05 17:27:33 MSK 2023
+17:27:33,394 |-INFO in ch.qos.logback.core.joran.action.NestedComplexPropertyIA - Assuming default type [ch.qos.logback.classic.encoder.PatternLayoutEncoder] for [encoder] property
+17:27:33,395 |-INFO in ch.qos.logback.core.rolling.RollingFileAppender[error-rollingFileAppender] - Active log file name: C:\Users\russe\OneDrive\Desktop\PA_Call_Run/logs/error.log
+17:27:33,395 |-INFO in ch.qos.logback.core.rolling.RollingFileAppender[error-rollingFileAppender] - File property is set to [C:\Users\russe\OneDrive\Desktop\PA_Call_Run/logs/error.log]
+17:27:33,396 |-INFO in ch.qos.logback.core.joran.action.AppenderAction - About to instantiate appender of type [ch.qos.logback.core.rolling.RollingFileAppender]
+17:27:33,396 |-INFO in ch.qos.logback.core.joran.action.AppenderAction - Naming appender as [da-appender]
+17:27:33,396 |-INFO in c.q.l.core.rolling.SizeAndTimeBasedRollingPolicy@668312960 - Archive files will be limited to [1 GB] each.
+17:27:33,396 |-INFO in c.q.l.core.rolling.SizeAndTimeBasedRollingPolicy@668312960 - Will use zip compression
+17:27:33,397 |-INFO in c.q.l.core.rolling.SizeAndTimeBasedRollingPolicy@668312960 - Will use the pattern C:/Users/russe/OneDrive/Desktop/PA_Call_Run/logs/da.%d{yyyy-MM-dd}.%i for the active file
+17:27:33,397 |-INFO in ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP@198d6542 - The date pattern is 'yyyy-MM-dd' from file name pattern 'C:/Users/russe/OneDrive/Desktop/PA_Call_Run/logs/da.%d{yyyy-MM-dd}.%i.zip'.
+17:27:33,398 |-INFO in ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP@198d6542 - Roll-over at midnight.
+17:27:33,399 |-INFO in ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP@198d6542 - Setting initial period to Tue Sep 05 17:27:33 MSK 2023
+17:27:33,399 |-INFO in ch.qos.logback.core.joran.action.NestedComplexPropertyIA - Assuming default type [ch.qos.logback.classic.encoder.PatternLayoutEncoder] for [encoder] property
+17:27:33,399 |-INFO in ch.qos.logback.core.rolling.RollingFileAppender[da-appender] - Active log file name: C:\Users\russe\OneDrive\Desktop\PA_Call_Run/logs/da.log
+17:27:33,399 |-INFO in ch.qos.logback.core.rolling.RollingFileAppender[da-appender] - File property is set to [C:\Users\russe\OneDrive\Desktop\PA_Call_Run/logs/da.log]
+17:27:33,400 |-INFO in ch.qos.logback.classic.joran.action.LoggerAction - Setting level of logger [com.experian.eda.runtime.common.da] to INFO
+17:27:33,400 |-INFO in ch.qos.logback.classic.joran.action.LoggerAction - Setting additivity of logger [com.experian.eda.runtime.common.da] to false
+17:27:33,400 |-INFO in ch.qos.logback.core.joran.action.AppenderRefAction - Attaching appender named [da-appender] to Logger[com.experian.eda.runtime.common.da]
+17:27:33,401 |-INFO in ch.qos.logback.classic.joran.action.LoggerAction - Setting level of logger [com.experian] to INFO
+17:27:33,401 |-INFO in ch.qos.logback.classic.joran.action.LoggerAction - Setting additivity of logger [com.experian] to false
+17:27:33,401 |-INFO in ch.qos.logback.core.joran.action.AppenderRefAction - Attaching appender named [error-rollingFileAppender] to Logger[com.experian]
+17:27:33,401 |-INFO in ch.qos.logback.core.joran.action.AppenderRefAction - Attaching appender named [transaction-rollingFileAppender] to Logger[com.experian]
+17:27:33,401 |-INFO in ch.qos.logback.classic.joran.action.LoggerAction - Setting level of logger [ru.vtb.spr] to DEBUG
+17:27:33,401 |-INFO in ch.qos.logback.classic.joran.action.LoggerAction - Setting additivity of logger [ru.vtb.spr] to false
+17:27:33,401 |-INFO in ch.qos.logback.core.joran.action.AppenderRefAction - Attaching appender named [error-rollingFileAppender] to Logger[ru.vtb.spr]
+17:27:33,401 |-INFO in ch.qos.logback.core.joran.action.AppenderRefAction - Attaching appender named [transaction-rollingFileAppender] to Logger[ru.vtb.spr]
+17:27:33,401 |-INFO in ch.qos.logback.classic.joran.action.LoggerAction - Setting level of logger [com.experian.eda.enterprise.main] to INFO
+17:27:33,401 |-INFO in ch.qos.logback.classic.joran.action.LoggerAction - Setting additivity of logger [com.experian.eda.enterprise.main] to false
+17:27:33,401 |-INFO in ch.qos.logback.core.joran.action.AppenderRefAction - Attaching appender named [error-rollingFileAppender] to Logger[com.experian.eda.enterprise.main]
+17:27:33,401 |-INFO in ch.qos.logback.core.joran.action.AppenderRefAction - Attaching appender named [transaction-rollingFileAppender] to Logger[com.experian.eda.enterprise.main]
+17:27:33,401 |-INFO in ch.qos.logback.classic.joran.action.LoggerAction - Setting level of logger [com.experian.eda.enterprise.ipf] to WARN
+17:27:33,401 |-INFO in ch.qos.logback.classic.joran.action.LoggerAction - Setting additivity of logger [com.experian.eda.enterprise.ipf] to false
+17:27:33,401 |-INFO in ch.qos.logback.core.joran.action.AppenderRefAction - Attaching appender named [error-rollingFileAppender] to Logger[com.experian.eda.enterprise.ipf]
+17:27:33,401 |-INFO in ch.qos.logback.core.joran.action.AppenderRefAction - Attaching appender named [transaction-rollingFileAppender] to Logger[com.experian.eda.enterprise.ipf]
+17:27:33,401 |-INFO in ch.qos.logback.classic.joran.action.LoggerAction - Setting level of logger [com.experian.eda.enterprise.ipf.IpfInitializer] to INFO
+17:27:33,401 |-INFO in ch.qos.logback.classic.joran.action.LoggerAction - Setting additivity of logger [com.experian.eda.enterprise.ipf.IpfInitializer] to false
+17:27:33,401 |-INFO in ch.qos.logback.core.joran.action.AppenderRefAction - Attaching appender named [error-rollingFileAppender] to Logger[com.experian.eda.enterprise.ipf.IpfInitializer]
+17:27:33,401 |-INFO in ch.qos.logback.core.joran.action.AppenderRefAction - Attaching appender named [transaction-rollingFileAppender] to Logger[com.experian.eda.enterprise.ipf.IpfInitializer]
+17:27:33,401 |-INFO in ch.qos.logback.classic.joran.action.LoggerAction - Setting level of logger [org.hibernate] to ERROR
+17:27:33,401 |-INFO in ch.qos.logback.classic.joran.action.LoggerAction - Setting additivity of logger [org.hibernate] to false
+17:27:33,401 |-INFO in ch.qos.logback.core.joran.action.AppenderRefAction - Attaching appender named [error-rollingFileAppender] to Logger[org.hibernate]
+17:27:33,401 |-INFO in ch.qos.logback.core.joran.action.AppenderRefAction - Attaching appender named [transaction-rollingFileAppender] to Logger[org.hibernate]
+17:27:33,401 |-INFO in ch.qos.logback.classic.joran.action.LoggerAction - Setting level of logger [org.eclipse.jetty] to ERROR
+17:27:33,401 |-INFO in ch.qos.logback.classic.joran.action.LoggerAction - Setting additivity of logger [org.eclipse.jetty] to false
+17:27:33,401 |-INFO in ch.qos.logback.core.joran.action.AppenderRefAction - Attaching appender named [error-rollingFileAppender] to Logger[org.eclipse.jetty]
+17:27:33,402 |-INFO in ch.qos.logback.core.joran.action.AppenderRefAction - Attaching appender named [transaction-rollingFileAppender] to Logger[org.eclipse.jetty]
+17:27:33,402 |-INFO in ch.qos.logback.classic.joran.action.LoggerAction - Setting level of logger [org.apache.camel] to ERROR
+17:27:33,402 |-INFO in ch.qos.logback.classic.joran.action.LoggerAction - Setting additivity of logger [org.apache.camel] to false
+17:27:33,402 |-INFO in ch.qos.logback.core.joran.action.AppenderRefAction - Attaching appender named [error-rollingFileAppender] to Logger[org.apache.camel]
+17:27:33,402 |-INFO in ch.qos.logback.core.joran.action.AppenderRefAction - Attaching appender named [transaction-rollingFileAppender] to Logger[org.apache.camel]
+17:27:33,402 |-INFO in ch.qos.logback.classic.joran.action.LoggerAction - Setting level of logger [org.springframework.beans.factory] to ERROR
+17:27:33,402 |-INFO in ch.qos.logback.classic.joran.action.LoggerAction - Setting additivity of logger [org.springframework.beans.factory] to false
+17:27:33,402 |-INFO in ch.qos.logback.core.joran.action.AppenderRefAction - Attaching appender named [error-rollingFileAppender] to Logger[org.springframework.beans.factory]
+17:27:33,402 |-INFO in ch.qos.logback.core.joran.action.AppenderRefAction - Attaching appender named [transaction-rollingFileAppender] to Logger[org.springframework.beans.factory]
+17:27:33,402 |-INFO in ch.qos.logback.classic.joran.action.RootLoggerAction - Setting level of ROOT logger to INFO
+17:27:33,402 |-INFO in ch.qos.logback.core.joran.action.AppenderRefAction - Attaching appender named [error-rollingFileAppender] to Logger[ROOT]
+17:27:33,402 |-INFO in ch.qos.logback.core.joran.action.AppenderRefAction - Attaching appender named [transaction-rollingFileAppender] to Logger[ROOT]
+17:27:33,402 |-INFO in ch.qos.logback.classic.joran.action.RootLoggerAction - Setting level of ROOT logger to DEBUG
+17:27:33,402 |-INFO in ch.qos.logback.core.joran.action.AppenderRefAction - Attaching appender named [error-rollingFileAppender] to Logger[ROOT]
+17:27:33,402 |-INFO in ch.qos.logback.core.joran.action.AppenderRefAction - Attaching appender named [transaction-rollingFileAppender] to Logger[ROOT]
+17:27:33,402 |-INFO in ch.qos.logback.classic.joran.action.ConfigurationAction - End of configuration.
+17:27:33,402 |-INFO in ch.qos.logback.classic.joran.JoranConfigurator@7674b62c - Registering current configuration as safe fallback point

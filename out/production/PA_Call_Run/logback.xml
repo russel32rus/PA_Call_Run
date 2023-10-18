@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<configuration debug="true" scan="true" scanPeriod="5 seconds">
+
+    <property file="${client.solution.home}/tenants.properties" />
+
+    <!--
+        Enable JMX management. User can then find some useful operations on the MBeans panel through jconsole,
+        under "ch.qos.logback.classic.jmx.Configurator".
+
+        Reference: http://logback.qos.ch/manual/jmxConfig.html
+    -->
+    <jmxConfigurator />
+
+    <conversionRule conversionWord="metadata" converterClass="com.experian.eda.enterprise.logging.CxMetadataConverter" />
+
+    <appender name="transaction-rollingFileAppender" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${client.solution.home}/logs/transaction.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${client.solution.home}/logs/transaction.%d{yyyy-MM-dd}.%i.zip</fileNamePattern>
+            <maxFileSize>1GB</maxFileSize>
+            <maxHistory>7</maxHistory>
+        </rollingPolicy>
+        <encoder>
+            <charset>UTF-8</charset>
+            <pattern>%date [%thread] %-5level %logger{50} - %replace(%msg){'[\r\n]+','&#10;&gt;&gt;&gt;'}%n</pattern>
+        </encoder>
+    </appender>
+
+    <appender name="error-rollingFileAppender" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <filter class="ch.qos.logback.classic.filter.LevelFilter">
+            <level>ERROR</level>
+            <onMismatch>DENY</onMismatch>
+            <onMatch>ACCEPT</onMatch>
+        </filter>
+        <file>${client.solution.home}/logs/error.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${client.solution.home}/logs/Error.%d{yyyy-MM-dd}.%i.zip</fileNamePattern>
+            <maxFileSize>1GB</maxFileSize>
+            <maxHistory>7</maxHistory>
+        </rollingPolicy>
+        <encoder>
+            <charset>UTF-8</charset>
+            <pattern>%date %metadata [%thread] %-5level %logger{25} - %replace(%msg){'[\r\n]+','&#10;&gt;&gt;&gt;'}%n</pattern>
+        </encoder>
+    </appender>
+
+    <appender name="da-appender" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${client.solution.home}/logs/da.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${client.solution.home}/logs/da.%d{yyyy-MM-dd}.%i.zip</fileNamePattern>
+            <maxFileSize>1GB</maxFileSize>
+            <maxHistory>7</maxHistory>
+        </rollingPolicy>
+        <encoder>
+            <charset>UTF-8</charset>
+            <pattern>%date %-5level %logger{50} - %replace(%msg){'[\r\n]+','&#10;&gt;&gt;&gt;'}%n</pattern>
+        </encoder>
+    </appender>
+
+    <logger name="com.experian.eda.runtime.common.da" level="INFO" additivity="false">
+        <appender-ref ref="da-appender"/>
+        <!-- <appender-ref ref="database-appender-async" /> -->
+    </logger>
+
+    <logger name="com.experian" level="INFO" additivity="false">
+        <appender-ref ref="error-rollingFileAppender" />
+        <appender-ref ref="transaction-rollingFileAppender" />
+        <!--<appender-ref ref="STDOUT"/>-->
+    </logger>
+
+    <logger name="ru.vtb.spr" level="DEBUG" additivity="false">
+        <appender-ref ref="error-rollingFileAppender" />
+        <appender-ref ref="transaction-rollingFileAppender" />
+        <!--<appender-ref ref="STDOUT"/>-->
+        <!-- <appender-ref ref="database-appender-async" /> -->
+    </logger>
+
+    <!-- as per the hierarchy all the log messages that coming to the child loggers will be propagated to
+    the parent appenders too In order to avoid this redundancy, we use the option additivity = "false" -->
+
+    <logger name="com.experian.eda.enterprise.main" level="INFO" additivity="false">
+        <appender-ref ref="error-rollingFileAppender" />
+        <appender-ref ref="transaction-rollingFileAppender" />
+        <!--<appender-ref ref="STDOUT"/>-->
+    </logger>
+
+    <logger name="com.experian.eda.enterprise.ipf" level="WARN" additivity="false">
+        <appender-ref ref="error-rollingFileAppender" />
+        <appender-ref ref="transaction-rollingFileAppender" />
+        <!--<appender-ref ref="STDOUT"/>-->
+    </logger>
+
+    <logger name="com.experian.eda.enterprise.ipf.IpfInitializer" level="INFO" additivity="false">
+        <appender-ref ref="error-rollingFileAppender" />
+        <appender-ref ref="transaction-rollingFileAppender" />
+        <!--<appender-ref ref="STDOUT"/>-->
+    </logger>
+
+    <logger name="org.hibernate" level="ERROR" additivity="false">
+        <appender-ref ref="error-rollingFileAppender" />
+        <appender-ref ref="transaction-rollingFileAppender" />
+        <!--<appender-ref ref="STDOUT"/>-->
+    </logger>
+
+    <logger name="org.eclipse.jetty" level="ERROR" additivity="false">
+        <appender-ref ref="error-rollingFileAppender" />
+        <appender-ref ref="transaction-rollingFileAppender" />
+        <!--<appender-ref ref="STDOUT"/>-->
+    </logger>
+
+    <logger name="org.apache.camel" level="ERROR" additivity="false">
+        <appender-ref ref="error-rollingFileAppender" />
+        <appender-ref ref="transaction-rollingFileAppender" />
+        <!--<appender-ref ref="STDOUT"/>-->
+    </logger>
+
+    <logger name="org.springframework.beans.factory" level="ERROR" additivity="false">
+        <appender-ref ref="error-rollingFileAppender" />
+        <appender-ref ref="transaction-rollingFileAppender" />
+        <!--<appender-ref ref="STDOUT"/>-->
+    </logger>
+
+    <root level="INFO">
+        <appender-ref ref="error-rollingFileAppender" />
+        <appender-ref ref="transaction-rollingFileAppender"/>
+    </root>
+
+    <root level="DEBUG">
+        <appender-ref ref="error-rollingFileAppender" />
+        <appender-ref ref="transaction-rollingFileAppender"/>
+    </root>
+
+</configuration>

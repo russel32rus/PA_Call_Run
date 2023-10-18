@@ -1,0 +1,5 @@
+# Default ignored files
+dbConns/
+jre/
+strategies/
+output/
