@@ -45,27 +45,37 @@ static void main(String[] args) {
 
   //Удаляем содержимое оутпута чтобы не забивалось
   String folderPath = "output"
-  new File(folderPath).eachFile (FileType.FILES) { file ->
-    file.delete()
+  if (new File(folderPath).exists()) {
+    new File(folderPath).eachFile (FileType.FILES) { file ->
+      file.delete()
+    }
+  } else {
+    new File(folderPath).mkdirs()
   }
 
   //Удаляем содержимое logs чтобы не забивалось
   String logsPath = "logs"
-  new File(logsPath).eachFile (FileType.FILES) { file ->
-    file.delete()
+  if (new File(logsPath).exists()) {
+    new File(logsPath).eachFile (FileType.FILES) { file ->
+      file.delete()
+    }
+  } else {
+    new File(logsPath).mkdirs()
   }
 
   //Удаляем содержимое input чтобы не забивалось
-  String inputPath = "input"
+  /*String inputPath = "input"
   new File(inputPath).eachFile (FileType.FILES) { file ->
     if (file.name.contains(".json")) file.delete()
-  }
+  }*/
 
   dbConnsPath = "dbConns"
   def dbConnList = []
-  new File(dbConnsPath).eachFile (FileType.FILES) { file ->
-    dbConnList.add(file.name.toString())
-    log.info("file.name = ${file.name.toString()}")
+  if (new File(dbConnsPath).exists()) {
+    new File(dbConnsPath).eachFile (FileType.FILES) { file ->
+      dbConnList.add(file.name.toString())
+      log.info("file.name = ${file.name.toString()}")
+    }
   }
   log.info("dbConnsList = ${dbConnList.toString()}")
   dbConnName = dbConnList[0].toString()
@@ -140,8 +150,7 @@ void initFunc()
   thrCalc.start()
 
 }
-public class PACalc implements Runnable
-{
+public class PACalc implements Runnable {
   private volatile Boolean finished = false
   private volatile Integer CurrentCust = 0
   private String dbConnName, dbConnsPath, stageCd
