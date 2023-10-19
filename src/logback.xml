@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<configuration debug="true" scan="true" scanPeriod="5 seconds">
+<configuration debug="true" scanPeriod="5 seconds">
 
     <property file="${client.solution.home}/tenants.properties" />
 
