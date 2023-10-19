@@ -231,7 +231,7 @@ public class PACalc implements Runnable {
       pcsmConn =  getPcsmDbConnection()
       int packSize = 0
 
-      CreateCsvFile()
+      //CreateCsvFile()
 
       log.info("CustIDs = ${custIds.toString()}")
       custIds.each {c ->
@@ -293,7 +293,7 @@ public class PACalc implements Runnable {
                 Instant startSql = Instant.now()
                 ResultSet rs = ps.executeQuery()
                 packResultSetsMap.put(entityName, rs)
-                //packSqlDurs.put(entityName, getDurationMs(startSql))
+                packSqlDurs.put(entityName, getDurationMs(startSql))
                 log.info("$entityName read SQL done")
               } catch (Exception e) {
                 RuntimeException runtimeException = new RuntimeException("Error occured when executing select SQL for entity $entityName: ${e.getMessage()}")
@@ -322,7 +322,7 @@ public class PACalc implements Runnable {
             }
         }
 
-        /*Comparator<Map.Entry<String, Long>> cmp = new Comparator<Map.Entry<String, Long>>() {
+        Comparator<Map.Entry<String, Long>> cmp = new Comparator<Map.Entry<String, Long>>() {
 
           @Override
           int compare(Map.Entry<String, Long> o1, Map.Entry<String, Long> o2) {
@@ -337,7 +337,7 @@ public class PACalc implements Runnable {
                 .map{ Map.Entry<String, Long> entry -> "${entry.getKey()}: ${entry.getValue()}"}
                 .collect().toString()
         log.info("Customer read SQL done: $strPackSqlDur, ${getHeapMemInfo()}")
-        */
+
 
 
         ResultSet rsCustomer = packResultSetsMap.get(SQL_ENTITY_CUSTOMER)
