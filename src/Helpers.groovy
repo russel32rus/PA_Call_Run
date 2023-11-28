@@ -1,14 +1,12 @@
+import com.experian.eda.framework.runtime.dynamic.HierarchicalNode
+import com.experian.eda.framework.runtime.dynamic.IHData
 import com.experian.eda.component.decisionagent.*
 import com.experian.eda.decisionagent.interfaces.os390.BatchJSEMObjectInterface
-import com.experian.eda.framework.runtime.dynamic.HierarchicalDatasource
-import com.experian.eda.framework.runtime.dynamic.IHData
+import com.experian.eda.framework.runtime.dynamic.*
 
 import com.codahale.metrics.MetricRegistry
 import com.codahale.metrics.health.HealthCheckRegistry
 
-import javax.management.JMX
-import javax.management.MBeanServer
-import javax.management.ObjectName
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
 
@@ -53,12 +51,40 @@ import java.util.concurrent.TimeUnit
 import java.util.jar.JarEntry
 import java.util.jar.JarFile
 
+import com.experian.eda.framework.runtime.dynamic.HierarchicalNode
+import com.experian.eda.framework.runtime.dynamic.IHData
+import com.google.gson.JsonArray
+import com.google.gson.JsonElement
+import com.google.gson.JsonObject
+import groovy.io.FileType
+import groovy.swing.SwingBuilder
+import io.swagger.util.Json
+import org.statement.NamedPreparedStatement
+
+import static javax.swing.JFrame.EXIT_ON_CLOSE
+import javax.swing.JFrame
+import javax.swing.JOptionPane
+
+import java.sql.Connection
+import java.sql.ResultSet
+import java.time.Instant
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
+
+import permafrost.tundra.data.*
+
 import static CustomUtils.*
 import static DatabaseHelpers.*
 import static RccDictionary.*
 import static SmProcessingHelpers.*
+import static InitPcsmDbConn.*
+import static InitRccDbConn.*
+import static ReadGlobalParams.*
 import static ExtBatchSaveResultData.*
 import static JsonProcessingHelpers.*
+import static PACalc.*
 
 
 import java.util.concurrent.atomic.AtomicBoolean
@@ -428,9 +454,11 @@ class CustomUtils {
         if (mapDirection == OUTUT_MAP_DIRECTION) {
             globalConfSqlFlatMapOutput.put(entityName, rccEntity)
             globalConfSqlTreeOutput.put(parentEntityName, entityGroup)
+            log.info("mapDirection = OUTUT_MAP_DIRECTION; FlatMap: entityname = $entityName, rccEntity = $rccEntity; Tree: parentEntityName = $parentEntityName, entityGroup = $entityGroup")
         } else {
             globalConfSqlFlatMapInput.put(entityName, rccEntity)
             globalConfSqlTreeInput.put(parentEntityName, entityGroup)
+            log.info("mapDirection = INPUT_MAP_DIRECTION; FlatMap: entityname = $entityName, rccEntity = $rccEntity; Tree: parentEntityName = $parentEntityName, entityGroup = $entityGroup")
         }
     }
 
@@ -1171,7 +1199,10 @@ class SmProcessingHelpers {
                             log.debug("Unknown mapping for Customer Flag")
                     }
                 }
-                if (smFieldName != null) setSmVal(smLayout, smFieldName, smVal)
+                if (smFieldName != null) {
+                    setSmVal(smLayout, smFieldName, smVal)
+                    String val = smVal.toString()
+                }
                 log.debug("Passed Customer Flag ==> SM value '${smLayout.getLayout()}.$smFieldName': '$smVal'")
                 break
             default:
@@ -1225,6 +1256,7 @@ class SmProcessingHelpers {
             }
             dataDepth++
             smLayout.setValue(smFieldName, val)
+            String smVal = val.toString()
             log.debug("Passed DB value '$dbFieldName' ==> SM value '${smLayout.getLayout()}.$smFieldName' as $dataType: '$val'")
         } catch (Exception e) {
             log.error("Failed to pass DB value '$dbFieldName' ==> SM value '${smLayout.getLayout()}.$smFieldName' as $dataType: $e", e)
@@ -1414,8 +1446,10 @@ class SmProcessingHelpers {
      **************************************************************************************/
     static HashMap<String, IHData> smLayoutArrayToMap(IHData[] smDataArr) {
         HashMap<String, IHData> smDataMap = new HashMap<String, IHData>(smDataArr.size())
+        log.info("Setting layouts from smDataArr")
         for (IHData layout : smDataArr) {
             smDataMap.put(layout.getLayout(), layout)
+            log.info("smDataMap.put ${layout.getLayout()}")
         }
         return smDataMap
     }
@@ -1490,6 +1524,7 @@ class DecisionAgentTask implements Runnable {
             failedRecords.incrementAndGet()
             log.error("Failed to process Customer in Pack: $e")
         } finally {
+            SaveDALog(customerId)
             executionData = null // данные текущего клиента больше не нужны...
         }
     }
@@ -1581,7 +1616,6 @@ class ExtBatchSaveResultData {
         HashMap<String, IHData> smDataMap = smLayoutArrayToMap(smDataArr)
         IHData smStateData = smDataMap.get(SM_LAYOUT_STATE)
         IHData smDecisionData = smDataMap.get(SM_LAYOUT_DECISION)
-        IHData smCustomerData = smDataMap.get(SM_LAYOUT_CUSTOMER)
         log.info("Successfully received SM result IHData objects")
 
         Long customerIdd= getSmVal(smDecisionData, 'CUSTOMER_ID') as Long
@@ -1595,20 +1629,14 @@ class ExtBatchSaveResultData {
         }*/
         setSmVal(smStateData, SM_FIELD_PACK_GROUP_BY, calcPackGroupBy(smStateData))
 
-        //Сохраняем лог Вызова DA
-        SaveDALog(customerIdd)
-
         //Формирование JSON Файла
         log.info("Building SPR JSON response...")
-        RccEntity rootOutputEntity = globalConfSqlFlatMapOutput.getOrDefault(SQL_TREE_OUTPUT_ROOT, null)
-        if (rootOutputEntity == null) throw new Exception("Output root entity '$SQL_TREE_OUTPUT_ROOT' not found. Please revise entity tree in SM_CONF_ENTITY_TREE table")
-        AtomicInteger childObjNonEmptyAttributesCount = new AtomicInteger(0)
-        JsonElement responseRoot = mapSmTreeToJson(rootOutputEntity, smDataMap, "", "", childObjNonEmptyAttributesCount, globalConfSqlTreeOutput, globalConfMapOutput)
+        JsonObject responseRoot = mapSmToJson(smDataArr)
         String jsonResponse = jsonObjectToString(responseRoot)
         def newFile = new File("output/output_${customerIdd}.json")
         newFile.write(jsonResponse)
         log.info("Successfully built JSON response")
-        def jsonObj = responseRoot
+
         String[] csvColumns = new File('input\\csvColumns.txt') as String[]
         String csvRow = ''
         /*File csvTable = new File('output\\csvTable.csv')
@@ -1637,7 +1665,7 @@ class ExtBatchSaveResultData {
         csvTable.withWriter {fileWriter ->
             def csvFilePrinter = new CSVPrinter(fileWriter, CSVFormat.DEFAULT)
             csvFilePrinter.printRecord(csvRow)
-        }*/
+        }
 
         try {
             String batch_id1 = responseRoot.asJsonObject.keySet().toString() //Список сущностей
@@ -1658,7 +1686,7 @@ class ExtBatchSaveResultData {
             }
             catch (Exception e) {
                 throw new Exception(e.getMessage())
-            }
+            }*/
 
     }
 
@@ -1743,7 +1771,80 @@ class JsonProcessingHelpers {
     public static final String JSON_DATETIME_Z_FORMAT = "yyyy-MM-dd'T'HH:mm:ssX"
     public static final String JSON_DATE_FORMAT = "yyyy-MM-dd"
 
-    static JsonElement mapSmTreeToJson(RccEntity rccEntity, Map<String, IHData> smLayoutsMap, String jsonContextPath, String smContextPath, AtomicInteger nonEmptyAttributesCount, HashMap<String, HashMap<String, RccEntity>> globalConfSqlTree, HashMap<String, ArrayList<HashMap<String, String>>> globalConfMap) {
+    /*static JsonObject toJsonObject(IData input) {
+        JsonObject object = new JsonObject();
+
+        if (input != null) {
+            IDataCursor cursor = input.getCursor();
+
+            while (cursor.next()) {
+                String key = cursor.getKey();
+                Object value = cursor.getValue();
+
+                if (value == null) {
+                    // omit as nulls are not supported by the Java Hjson implementation
+                } else if (value instanceof IData[] || value instanceof Table || value instanceof IDataCodable[] || value instanceof IDataPortable[] || value instanceof ValuesCodable[]) {
+                    object.add(key, toJsonArray(IDataHelper.toIDataArray(value)));
+                } else if (value instanceof IData || value instanceof IDataCodable || value instanceof IDataPortable || value instanceof ValuesCodable) {
+                    object.add(key, toJsonObject(IDataHelper.toIData(value)));
+                } else if (value instanceof Object[]) {
+                    object.add(key, toJsonArray((Object[])value));
+                } else if (value instanceof Boolean) {
+                    object.add(key, ((Boolean)value));
+                } else if (value instanceof Integer) {
+                    object.add(key, (Integer)value);
+                } else if (value instanceof Long) {
+                    object.add(key, ((Long)value));
+                } else if (value instanceof BigInteger) {
+                    object.add(key, ((BigInteger)value).longValue());
+                } else if (value instanceof Float) {
+                    object.add(key, ((Float)value));
+                } else if (value instanceof Double) {
+                    object.add(key, ((Double)value));
+                } else if (value instanceof BigDecimal) {
+                    object.add(key, ((BigDecimal)value).doubleValue());
+                } else {
+                    object.add(key, value.toString());
+                }
+            }
+        }
+
+        return object;
+    }*/
+
+    /*static JsonObject mapSmToJson(HierarchicalDatasource data) {
+        JsonObject jsonElement = new JsonObject()
+        ArrayList<HashMap<String, Object>> list = new ArrayList<HashMap<String, Object>>()
+        data.rootNode.childNodeMap.each { name, obj ->
+            HashMap<String, Object> map = new HashMap<String, Object>()
+            map.put("name", name)
+            map.put("object", obj)
+            list.add(map)
+        }
+        for (HashMap<String, Object> map : list) {
+            String classname = map.get("object").getClass().simpleName
+            String name = map.get("name").toString()
+            log.info("name = $name, className = $classname")
+            if (classname == "ValueLeafNode") jsonElement.addProperty(name, map.get("object").getValue().toString())
+            if (classname == "MetadataLeafNode") {
+                Integer arrCount = map.get("object").size
+                Integer arrIndex = 0
+                log.info("arrCount = ${arrCount}")
+                if (arrCount > 0) {
+                    JsonArray childJsonArray = new JsonArray();
+                    for (arrIndex = 1; arrIndex <= arrCount; arrIndex++) {
+                        JsonObject childJsonElement = new JsonObject()
+                        childJsonElement = mapSmToJson(list["name[$arrIndex]"].rootNode.childNodeMap)
+                        childJsonArray.add(childJsonElement)
+                    }
+                    jsonElement.add(name, childJsonArray)
+                }
+            }
+        }
+        return jsonElement
+    }*/
+
+    static JsonObject mapSmTreeToJson(RccEntity rccEntity, HashMap<String, IHData> smLayoutsMap, String jsonContextPath, String smContextPath, AtomicInteger nonEmptyAttributesCount, HashMap<String, HashMap<String, RccEntity>> globalConfSqlTree, HashMap<String, ArrayList<HashMap<String, String>>> globalConfMap) {
         if (rccEntity == null) throw new Exception("Null entity found for JSON object under path [$jsonContextPath]. Please revise entity tree in SM_CONF_ENTITY_TREE table")
 
         log.info("Processing all children of entity ${rccEntity.entityName}...")
@@ -1765,7 +1866,7 @@ class JsonProcessingHelpers {
                             "jsonObjectType = ${childRccEntity.arrayType}")
             AtomicInteger childObjNonEmptyAttributesCount = new AtomicInteger(0)
             if (childRccEntity.arrayType == null) {
-                JsonElement  childJsonElement = mapSmTreeToJson(childRccEntity, smLayoutsMap,
+                JsonObject childJsonElement = mapSmTreeToJson(childRccEntity, smLayoutsMap,
                         "$jsonContextPath${childRccEntity.entityName}.", "$smContextPath${childRccEntity.entityName}.", childObjNonEmptyAttributesCount, globalConfSqlTree, globalConfMap)
                 currentJsonObject.add(childRccEntity.entityName, childJsonElement)
             }
@@ -1782,7 +1883,7 @@ class JsonProcessingHelpers {
                      *******************************************************************************************/
                     for (int arrIndex = 1; arrIndex <= arrCount; arrIndex++) {
                             log.debug("Processing array element: $jsonContextPath${childRccEntity.smLayoutName}[$arrIndex]")
-                        JsonElement childJsonElement = mapSmTreeToJson(childRccEntity, smLayoutsMap,
+                        JsonObject childJsonElement = mapSmTreeToJson(childRccEntity, smLayoutsMap,
                                 "$jsonContextPath${childRccEntity.entityName}[$arrIndex].",
                                 "$jsonContextPath${childRccEntity.entityName}[$arrIndex].",
                                 childObjNonEmptyAttributesCount, globalConfSqlTree, globalConfMap)
@@ -1814,7 +1915,7 @@ class JsonProcessingHelpers {
             String jsonFieldName = mapEntry.get("DB_FIELD")
             String fieldType = mapEntry.get("FIELD_TYPE")
             String smFieldNameFull = jsonFieldName
-            if (smLayout.getLayout()+"." != jsonContextPath) smFieldNameFull = jsonContextPath + jsonFieldName
+            //if (smLayout.getLayout()+"." != jsonContextPath) smFieldNameFull = jsonContextPath + jsonFieldName
             log.info("smFieldNameFull = $smFieldNameFull smLayout.getLayout() = ${smLayout.getLayout()} ")
             log.debug("Processing map entry: SM[$smFieldName] ==> JSON[$jsonContextPath$jsonFieldName]")
             log.debug("smFieldName = $smFieldName] ==> JSON jsonContextPath=$jsonContextPath jsonFieldName=$jsonFieldName")

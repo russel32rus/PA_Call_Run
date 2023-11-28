@@ -7,3 +7,11 @@ logs/
 out/
 /out
 out
+/.idea
+/src
+*.properties
+*.sh
+*.bat
+*.xml
+*.idea/
+*.iml

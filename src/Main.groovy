@@ -1,24 +1,16 @@
+import com.experian.eda.framework.runtime.dynamic.HierarchicalNode
 import com.experian.eda.framework.runtime.dynamic.IHData
-import com.zaxxer.hikari.HikariDataSource
+import com.google.gson.JsonArray
+import com.google.gson.JsonElement
+import com.google.gson.JsonObject
 import groovy.io.FileType
-import groovy.beans.Bindable
 import groovy.swing.SwingBuilder
-import org.apache.commons.csv.CSVFormat
-import org.apache.commons.csv.CSVPrinter
+import io.swagger.util.Json
 import org.statement.NamedPreparedStatement
 
-import javax.swing.JButton
-import java.awt.*
-import javax.management.JMX
-import javax.management.MBeanServer
-import javax.management.ObjectName
-import java.lang.management.ManagementFactory
-
-import com.zaxxer.hikari.HikariPoolMXBean
-
 import static javax.swing.JFrame.EXIT_ON_CLOSE
-import javax.swing.JFrame;
-import javax.swing.JOptionPane;
+import javax.swing.JFrame
+import javax.swing.JOptionPane
 
 import java.sql.Connection
 import java.sql.ResultSet
@@ -28,6 +20,8 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 
+import permafrost.tundra.data.*
+
 import static CustomUtils.*
 import static DatabaseHelpers.*
 import static RccDictionary.*
@@ -36,6 +30,7 @@ import static InitPcsmDbConn.*
 import static InitRccDbConn.*
 import static ReadGlobalParams.*
 import static ExtBatchSaveResultData.*
+import static JsonProcessingHelpers.*
 
 static void main(String[] args) {
 
@@ -114,17 +109,17 @@ static void main(String[] args) {
                 editable:true,
                 actionPerformed:{event-> dbConnName = event.source.selectedItem}
         )
-        label(
+        /*label(
                   id:'label1',
                   text: "Status : $CurrentCust of $AllCusts"
-        )
+        )*/
 
       }
 
     }
   }
 
-  if (paCalc != null)
+  /*if (paCalc != null)
   {
 
     while (!paCalc.isFinished())
@@ -138,7 +133,7 @@ static void main(String[] args) {
     }
     thrCalc.interrupt()
     statusText = "Run PA Calc2"
-  }
+  }*/
 
 
 
@@ -150,21 +145,22 @@ void initFunc()
   thrCalc.start()
 
 }
+
 public class PACalc implements Runnable {
   private volatile Boolean finished = false
   private volatile Integer CurrentCust = 0
   private String dbConnName, dbConnsPath, stageCd
   private volatile int AllCusts = 0
-  PACalc(String pDbConnName, String pDbConnsPath, String pStageCd)
-  {
+
+  PACalc(String pDbConnName, String pDbConnsPath, String pStageCd) {
     dbConnName = pDbConnName
     dbConnsPath = pDbConnsPath
-    stageCd  = pStageCd
+    stageCd = pStageCd
 
   }
+
   @Override
-  public void run()
-  {
+  public void run() {
     String dbConnName1 = dbConnName
     log.info("dbConnName = $dbConnName1")
     dbConnName1 = dbConnsPath + "/" + dbConnName1
@@ -206,7 +202,6 @@ public class PACalc implements Runnable {
     packRunningSemaphore.set(true)
 
 
-
     /*******************************************************************************************************
      * Получаем подключение к БД РКК из общего пула подключений
      *******************************************************************************************************/
@@ -228,13 +223,13 @@ public class PACalc implements Runnable {
       decisionAgentPoolExecutor = createDecisionAgentPool(batchThreads, batchQueueSize)
 
       rccConn = getRccDbConnection()
-      pcsmConn =  getPcsmDbConnection()
+      pcsmConn = getPcsmDbConnection()
       int packSize = 0
 
       //CreateCsvFile()
 
       log.info("CustIDs = ${custIds.toString()}")
-      custIds.each {c ->
+      custIds.each { c ->
         CurrentCust++
         customerId = c.toLong()
         log.info("CustIDs starts, custId = $customerId")
@@ -328,16 +323,15 @@ public class PACalc implements Runnable {
           int compare(Map.Entry<String, Long> o1, Map.Entry<String, Long> o2) {
             long v1 = o1.getValue()
             long v2 = o2.getValue()
-            return v2-v1
+            return v2 - v1
           }
         }
 
         String strPackSqlDur = packSqlDurs.entrySet().stream()
                 .sorted(cmp)
-                .map{ Map.Entry<String, Long> entry -> "${entry.getKey()}: ${entry.getValue()}"}
+                .map { Map.Entry<String, Long> entry -> "${entry.getKey()}: ${entry.getValue()}" }
                 .collect().toString()
         log.info("Customer read SQL done: $strPackSqlDur, ${getHeapMemInfo()}")
-
 
 
         ResultSet rsCustomer = packResultSetsMap.get(SQL_ENTITY_CUSTOMER)
@@ -345,10 +339,12 @@ public class PACalc implements Runnable {
         boolean usePoisonPill = false
         long maxMemory = Runtime.getRuntime().maxMemory() //xmX
         //ExtBatchSaveResultData.outputPsMap = new ConcurrentHashMap<String, NamedPreparedStatement>()
+        log.info("Before while rs.Cust")
         while (rsCustomer.next()) {
+          log.info("rsCustomer = ${rsCustomer.getLong("CUSTOMER_ID")}; customerId = $customerId")
           if (rsCustomer.getLong("CUSTOMER_ID") == customerId) {
             long usedMemory = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()
-            double usedXmxMemRatio = (double)usedMemory/maxMemory
+            double usedXmxMemRatio = (double) usedMemory / maxMemory
             if (usedXmxMemRatio > 0.6 && batchQueueSize > batchThreads) {
 
               //Instant startNewDAPE = Instant.now()
@@ -367,8 +363,8 @@ public class PACalc implements Runnable {
               log.info(oldDAPEdoneLog)
 
               //... и создаем новый TPE с размером очереди равным oldDAPEQueueSize*0.9, но не меньше batchThreads
-              batchQueueSize = oldDAPEQueueSize*0.9 as int
-              if(batchQueueSize < batchThreads) batchQueueSize = batchThreads
+              batchQueueSize = oldDAPEQueueSize * 0.9 as int
+              if (batchQueueSize < batchThreads) batchQueueSize = batchThreads
               decisionAgentPoolExecutor = createDecisionAgentPool(batchThreads, batchQueueSize)
 
               //Для первого клиента нового TPE (т.е. следующего) используем подход poison-pill, чтобы вызвать принудительный executeBatch накопленных данных в БД
@@ -397,6 +393,7 @@ public class PACalc implements Runnable {
               IHData smTrigMonitoringTask = addHierarchicalDatasource(SM_LAYOUT_TRIG_MONITORING_TASK, smLayoutsMap)
               Exception exceptionHandled = null
 
+              //TODO сделать запись сразу в Json либо сделать из сформированного SmData - Json
               try {
                 mapDbRecordToSm(rsCustomer, smLayoutsMap, getGlobalConfSqlEntity(SQL_TREE_INPUT_ROOT, SQL_ENTITY_CUSTOMER), null)
 
@@ -439,29 +436,32 @@ public class PACalc implements Runnable {
               setSmVal(smTrigMonitoringTask, SM_FIELD_WAVE_ID, waveId)
 
 
-
-
               /*****************************************************************************
                * Отправляем блок данных в очередь для вызова SM
                *****************************************************************************/
               IHData[] executionData = [smControlData, smCustomerData, smDecisionData, smStateData, smTrigMonitoringTask]
               RccEntity rootInputEntity = globalConfSqlFlatMapInput.getOrDefault(SQL_TREE_INPUT_ROOT, null)
               if (rootInputEntity == null) throw new Exception("Output root entity '$SQL_TREE_INPUT_ROOT' not found. Please revise entity tree in SM_CONF_ENTITY_TREE table")
-              //AtomicInteger childObjNonEmptyAttributesCount = new AtomicInteger(0)
-              decisionAgentPoolExecutor.execute(new DecisionAgentTask(executionData, traceFlags, customerId, packId, exceptionHandled, usePoisonPill)) // <--usePoisonPill
-              //HashMap<String, IHData> smDataMap1 = smLayoutArrayToMap(executionData)
-              //TODO формирование входного json
-              /*log.info("JSON IN START")
-              JsonElement responseRoot = mapSmTreeToJson(rootInputEntity, smDataMap1, "", "", childObjNonEmptyAttributesCount, globalConfSqlTreeInput, globalConfMapInput)
-              String jsonResponse = jsonObjectToString(responseRoot)
+
+              //TODO формирование входного json вернуться позже с решением
+              log.info("JSON IN START")
+              JsonObject jsonIn = mapSmToJson(executionData)
+
+              String jsonResponse = jsonObjectToString(jsonIn)
               log.info("JSON-IN customerID $jsonResponse")
               def newFile = new File("input/input_${customerId}.json")
-              newFile.write(jsonResponse)*/
-              usePoisonPill = false //только один клиент с usePoisonPill = true для новосозданного TPE после использования памяти на >60%
-              smLayoutsMap = null
-              executionData = null //ссылку на executionData выше передали в конструктор таска, значит объект таска ее сохранит
+              newFile.write(jsonResponse)
 
-              packSize  = packSize + 1
+              decisionAgentPoolExecutor.execute(new DecisionAgentTask(executionData, traceFlags, customerId, packId, exceptionHandled, usePoisonPill))
+              // <--usePoisonPill
+
+              usePoisonPill = false
+              //только один клиент с usePoisonPill = true для новосозданного TPE после использования памяти на >60%
+              smLayoutsMap = null
+              executionData = null
+              //ссылку на executionData выше передали в конструктор таска, значит объект таска ее сохранит
+
+              packSize = packSize + 1
               prevCustomerId = customerId
 
             }
@@ -473,7 +473,7 @@ public class PACalc implements Runnable {
           }
         }
 
-       // ((HikariDataSource)rccDataSource).evictConnection(rccConn)
+        // ((HikariDataSource)rccDataSource).evictConnection(rccConn)
 
         //rsCustomer.close()
         //label1.text = "Status : $CurrentCust of $AllCusts"
@@ -576,20 +576,68 @@ public class PACalc implements Runnable {
     }
   }
 
-  public Boolean isFinished()
-  {
+  public Boolean isFinished() {
     return finished
   }
 
-  public int GetAllCust()
-  {
+  public int GetAllCust() {
     return AllCusts
   }
 
-  public int GetCurrCust()
-  {
+  public int GetCurrCust() {
     return CurrentCust
   }
+
+  static JsonObject mapSmToJson(IHData[] data1) {
+
+    JsonObject jsonIn = new JsonObject()
+    data1.each { data ->
+      JsonObject jsonElement = new JsonObject()
+      log.info("layout = ${data.getLayout().toString()}")
+      HierarchicalNode data2 = data.rootNode
+      jsonElement = mapNodeToJson(data2)
+      jsonIn.add(data.getLayout().toString(), jsonElement)
+    }
+
+    return jsonIn
+  }
+
+  static JsonObject mapNodeToJson(HierarchicalNode node) {
+
+    JsonObject jsonElement = new JsonObject()
+    ArrayList<HashMap<String, Object>> list = new ArrayList<HashMap<String, Object>>()
+    node.childNodeMap.each { name, obj ->
+      HashMap<String, Object> map = new HashMap<String, Object>()
+      map.put("name", name)
+      map.put("object", obj)
+      list.add(map)
+    }
+    for (HashMap<String, Object> map : list) {
+      String classname = map.get("object").getClass().simpleName
+      String name = map.get("name").toString()
+      log.info("name = $name, className = $classname")
+      if (classname == "ValueLeafNode") jsonElement.addProperty(name, map.get("object").getValue().toString())
+      if (classname == "MetadataLeafNode") {
+        Integer arrCount = map.get("object").size
+        Integer arrIndex = 0
+        log.info("arrCount = ${arrCount}")
+        if (arrCount > 0) {
+          JsonArray childJsonArray = new JsonArray();
+          for (arrIndex = 1; arrIndex <= arrCount; arrIndex++) {
+            JsonObject childJsonElement = new JsonObject()
+            for (HashMap<String, Object> map1 : list) {
+              if (map1.get("name") == "$name[$arrIndex]") {
+                childJsonElement = mapNodeToJson(map1.get("object") as HierarchicalNode)
+                childJsonArray.add(childJsonElement)
+              }
+            }
+          }
+          jsonElement.add(name, childJsonArray)
+        }
+      }
+    }
+
+    return jsonElement
+  }
+
 }
-
-
