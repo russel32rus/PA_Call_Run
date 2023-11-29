@@ -6,7 +6,7 @@ import com.experian.eda.framework.runtime.dynamic.*
 
 import com.codahale.metrics.MetricRegistry
 import com.codahale.metrics.health.HealthCheckRegistry
-
+import com.google.gson.internal.LinkedTreeMap
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
 
@@ -84,7 +84,7 @@ import static InitRccDbConn.*
 import static ReadGlobalParams.*
 import static ExtBatchSaveResultData.*
 import static JsonProcessingHelpers.*
-import static PACalc.*
+import static PADown.*
 
 
 import java.util.concurrent.atomic.AtomicBoolean
@@ -98,8 +98,11 @@ class CustomUtils {
 
     static final Logger log = LoggerFactory.getLogger(this)
     public static String dbConnName, dbConnsPath, stageCd
+    public static String[] custIds
     public static int traceFlags
     public static int batchThreads
+    public static PADown paDown = null
+    public static Thread thrDown = null
     public static PACalc paCalc = null
     public static Thread thrCalc = null
     public static int  batchQueueSize
@@ -275,6 +278,13 @@ class CustomUtils {
         } else {
             globalConf.remove(paramName)
         }
+    }
+
+    static String[] getStringArrFromChar(String input){
+        String[] out = null
+        String outS = String.valueOf(input)
+        out = outS.split(/\n/) as String[]
+        return out
     }
 
     static long getDurationMs(Instant start) {
@@ -1770,79 +1780,7 @@ class JsonProcessingHelpers {
     public static final String JSON_DATETIME_FORMAT = "yyyy-MM-dd'T'HH:mm:ss"
     public static final String JSON_DATETIME_Z_FORMAT = "yyyy-MM-dd'T'HH:mm:ssX"
     public static final String JSON_DATE_FORMAT = "yyyy-MM-dd"
-
-    /*static JsonObject toJsonObject(IData input) {
-        JsonObject object = new JsonObject();
-
-        if (input != null) {
-            IDataCursor cursor = input.getCursor();
-
-            while (cursor.next()) {
-                String key = cursor.getKey();
-                Object value = cursor.getValue();
-
-                if (value == null) {
-                    // omit as nulls are not supported by the Java Hjson implementation
-                } else if (value instanceof IData[] || value instanceof Table || value instanceof IDataCodable[] || value instanceof IDataPortable[] || value instanceof ValuesCodable[]) {
-                    object.add(key, toJsonArray(IDataHelper.toIDataArray(value)));
-                } else if (value instanceof IData || value instanceof IDataCodable || value instanceof IDataPortable || value instanceof ValuesCodable) {
-                    object.add(key, toJsonObject(IDataHelper.toIData(value)));
-                } else if (value instanceof Object[]) {
-                    object.add(key, toJsonArray((Object[])value));
-                } else if (value instanceof Boolean) {
-                    object.add(key, ((Boolean)value));
-                } else if (value instanceof Integer) {
-                    object.add(key, (Integer)value);
-                } else if (value instanceof Long) {
-                    object.add(key, ((Long)value));
-                } else if (value instanceof BigInteger) {
-                    object.add(key, ((BigInteger)value).longValue());
-                } else if (value instanceof Float) {
-                    object.add(key, ((Float)value));
-                } else if (value instanceof Double) {
-                    object.add(key, ((Double)value));
-                } else if (value instanceof BigDecimal) {
-                    object.add(key, ((BigDecimal)value).doubleValue());
-                } else {
-                    object.add(key, value.toString());
-                }
-            }
-        }
-
-        return object;
-    }*/
-
-    /*static JsonObject mapSmToJson(HierarchicalDatasource data) {
-        JsonObject jsonElement = new JsonObject()
-        ArrayList<HashMap<String, Object>> list = new ArrayList<HashMap<String, Object>>()
-        data.rootNode.childNodeMap.each { name, obj ->
-            HashMap<String, Object> map = new HashMap<String, Object>()
-            map.put("name", name)
-            map.put("object", obj)
-            list.add(map)
-        }
-        for (HashMap<String, Object> map : list) {
-            String classname = map.get("object").getClass().simpleName
-            String name = map.get("name").toString()
-            log.info("name = $name, className = $classname")
-            if (classname == "ValueLeafNode") jsonElement.addProperty(name, map.get("object").getValue().toString())
-            if (classname == "MetadataLeafNode") {
-                Integer arrCount = map.get("object").size
-                Integer arrIndex = 0
-                log.info("arrCount = ${arrCount}")
-                if (arrCount > 0) {
-                    JsonArray childJsonArray = new JsonArray();
-                    for (arrIndex = 1; arrIndex <= arrCount; arrIndex++) {
-                        JsonObject childJsonElement = new JsonObject()
-                        childJsonElement = mapSmToJson(list["name[$arrIndex]"].rootNode.childNodeMap)
-                        childJsonArray.add(childJsonElement)
-                    }
-                    jsonElement.add(name, childJsonArray)
-                }
-            }
-        }
-        return jsonElement
-    }*/
+    public static final String SM_DATE_FORMAT = "yyyyMMdd"
 
     static JsonObject mapSmTreeToJson(RccEntity rccEntity, HashMap<String, IHData> smLayoutsMap, String jsonContextPath, String smContextPath, AtomicInteger nonEmptyAttributesCount, HashMap<String, HashMap<String, RccEntity>> globalConfSqlTree, HashMap<String, ArrayList<HashMap<String, String>>> globalConfMap) {
         if (rccEntity == null) throw new Exception("Null entity found for JSON object under path [$jsonContextPath]. Please revise entity tree in SM_CONF_ENTITY_TREE table")
@@ -1859,39 +1797,38 @@ class JsonProcessingHelpers {
 
         globalConfSqlTree.get(rccEntity.entityName)?.each {
             childEntityId, childRccEntity ->
-            /*******************************************************************************************
-            * Цикл по всем дочерним сущностям, описанных в модели SM_CONF_ENTITY_TREE
-            *******************************************************************************************/
-            log.debug("Found next output entity $childEntityId in logical tree model: jsonObjectName = ${childRccEntity.entityName}, " +
-                            "jsonObjectType = ${childRccEntity.arrayType}")
-            AtomicInteger childObjNonEmptyAttributesCount = new AtomicInteger(0)
-            if (childRccEntity.arrayType == null) {
-                JsonObject childJsonElement = mapSmTreeToJson(childRccEntity, smLayoutsMap,
-                        "$jsonContextPath${childRccEntity.entityName}.", "$smContextPath${childRccEntity.entityName}.", childObjNonEmptyAttributesCount, globalConfSqlTree, globalConfMap)
-                currentJsonObject.add(childRccEntity.entityName, childJsonElement)
-            }
-            else {
-                log.info("smLayoutsMap.get(childRccEntity.smLayoutName) = ${smLayoutsMap.get(childRccEntity.smLayoutName)}")
-                log.info("entityName = $smContextPath${childRccEntity.entityName}")
-                Integer arrCount = getSmVal(smLayoutsMap.get(childRccEntity.smLayoutName),
-                        getSmArrayCounterName("$smContextPath${childRccEntity.entityName}")) as Integer
-                log.info("arrCount = $arrCount")
-                if (arrCount > 0) {
-                    JsonArray childJsonArray = new JsonArray();
-                    /*******************************************************************************************
-                     * Цикл по всем элементам массива
-                     *******************************************************************************************/
-                    for (int arrIndex = 1; arrIndex <= arrCount; arrIndex++) {
+                /*******************************************************************************************
+                 * Цикл по всем дочерним сущностям, описанных в модели SM_CONF_ENTITY_TREE
+                 *******************************************************************************************/
+                log.debug("Found next output entity $childEntityId in logical tree model: jsonObjectName = ${childRccEntity.entityName}, " +
+                        "jsonObjectType = ${childRccEntity.arrayType}")
+                AtomicInteger childObjNonEmptyAttributesCount = new AtomicInteger(0)
+                if (childRccEntity.arrayType == null) {
+                    JsonObject childJsonElement = mapSmTreeToJson(childRccEntity, smLayoutsMap,
+                            "$jsonContextPath${childRccEntity.entityName}.", "$smContextPath${childRccEntity.entityName}.", childObjNonEmptyAttributesCount, globalConfSqlTree, globalConfMap)
+                    currentJsonObject.add(childRccEntity.entityName, childJsonElement)
+                } else {
+                    log.info("smLayoutsMap.get(childRccEntity.smLayoutName) = ${smLayoutsMap.get(childRccEntity.smLayoutName)}")
+                    log.info("entityName = $smContextPath${childRccEntity.entityName}")
+                    Integer arrCount = getSmVal(smLayoutsMap.get(childRccEntity.smLayoutName),
+                            getSmArrayCounterName("$smContextPath${childRccEntity.entityName}")) as Integer
+                    log.info("arrCount = $arrCount")
+                    if (arrCount > 0) {
+                        JsonArray childJsonArray = new JsonArray();
+                        /*******************************************************************************************
+                         * Цикл по всем элементам массива
+                         *******************************************************************************************/
+                        for (int arrIndex = 1; arrIndex <= arrCount; arrIndex++) {
                             log.debug("Processing array element: $jsonContextPath${childRccEntity.smLayoutName}[$arrIndex]")
-                        JsonObject childJsonElement = mapSmTreeToJson(childRccEntity, smLayoutsMap,
-                                "$jsonContextPath${childRccEntity.entityName}[$arrIndex].",
-                                "$jsonContextPath${childRccEntity.entityName}[$arrIndex].",
-                                childObjNonEmptyAttributesCount, globalConfSqlTree, globalConfMap)
-                        childJsonArray.add(childJsonElement)
+                            JsonObject childJsonElement = mapSmTreeToJson(childRccEntity, smLayoutsMap,
+                                    "$jsonContextPath${childRccEntity.entityName}[$arrIndex].",
+                                    "$jsonContextPath${childRccEntity.entityName}[$arrIndex].",
+                                    childObjNonEmptyAttributesCount, globalConfSqlTree, globalConfMap)
+                            childJsonArray.add(childJsonElement)
+                        }
+                        currentJsonObject.add(childRccEntity.entityName, childJsonArray)
                     }
-                    currentJsonObject.add(childRccEntity.entityName, childJsonArray)
                 }
-            }
         }
         return currentJsonObject
     }
@@ -2064,78 +2001,77 @@ class JsonProcessingHelpers {
                      *******************************************************************************************/
                 childEntityId, childRccEntity ->
                     // Если текущей сущности нет в мапинге для заданного вызова - выходим
-                        log.debug("Found next entity $childEntityId in logical tree model: jsonObjectName = ${childRccEntity.entityName}, jsonObjectType = ${childRccEntity.arrayType}")
+                    log.debug("Found next entity $childEntityId in logical tree model: jsonObjectName = ${childRccEntity.entityName}, jsonObjectType = ${childRccEntity.arrayType}")
 
-                        /*******************************************************************************************
-                         * Получаем дочерний JsonElement по имени и проверяем его тип
-                         *******************************************************************************************/
-                            JsonElement childJsonElement = jsonElement.asJsonObject.get(childRccEntity.entityName)
-                        if (childJsonElement != null) {
-                            if (childRccEntity.arrayType == null) {
-                                if (!childJsonElement.isJsonObject())
-                                    throw new Exception("Unexpected type of JSON element defined as [${childRccEntity.arrayType}] found in message for entity $childEntityId. " +
-                                            "Expected type: [JsonObject], actual type: [${childJsonElement?.getClass()?.getName()}]")
+                    /*******************************************************************************************
+                     * Получаем дочерний JsonElement по имени и проверяем его тип
+                     *******************************************************************************************/
+                    JsonElement childJsonElement = jsonElement.asJsonObject.get(childRccEntity.entityName)
+                    if (childJsonElement != null) {
+                        if (childRccEntity.arrayType == null) {
+                            if (!childJsonElement.isJsonObject())
+                                throw new Exception("Unexpected type of JSON element defined as [${childRccEntity.arrayType}] found in message for entity $childEntityId. " +
+                                        "Expected type: [JsonObject], actual type: [${childJsonElement?.getClass()?.getName()}]")
+
+                            /*******************************************************************************************
+                             * Выполняем маппинг всех вложенных примитивов
+                             *******************************************************************************************/
+                            mapJsonAttributesToSm(childJsonElement, childRccEntity, smLayoutsMap,
+                                    "$jsonContextPath${childRccEntity.entityName}.", "$smContextPath${childRccEntity.smLayoutName}.")
+
+                            /*******************************************************************************************
+                             * Если в описании модели SM_CONF_ENTITY_TREE у текущей сущности есть дочерние сущности,
+                             * то рекурсивно обрабатываем их
+                             *******************************************************************************************/
+                            if (globalConfSqlTreeInput.get(childRccEntity.entityName)?.size() > 0)
+                                mapJsonTreeToSm(childJsonElement, childRccEntity, smLayoutsMap,
+                                        "$jsonContextPath${childRccEntity.entityName}.", "$smContextPath${childRccEntity.smLayoutName}.")
+                        } else {
+                            if (!childJsonElement.isJsonArray())
+                                throw new Exception("Unexpected type of JSON element defined as [${childRccEntity.arrayType}] found in message for entity $childEntityId. " +
+                                        "Expected type: [JsonArray], actual type: [${childJsonElement?.getClass()?.getName()}]")
+                            int arrIndex = 0
+                            /*******************************************************************************************
+                             * Цикл по всем элементам массива
+                             *******************************************************************************************/
+                            for (JsonElement arrElement : childJsonElement.getAsJsonArray()) {
+                                arrIndex++
+                                /*******************************************************************************************
+                                 * Выставим размер динамического массива
+                                 *******************************************************************************************/
+                                if (childRccEntity.arrayType == ENTITY_ARRAY_TYPE_DYNAMIC) {
+                                    log.debug("${rccEntity.smLayoutName}.setSize('$smContextPath${childRccEntity.smLayoutName}', $arrIndex)")
+                                    smLayoutsMap.get(childRccEntity.smLayoutName).setSize("$smContextPath${childRccEntity.smLayoutName}", arrIndex)
+                                }
 
                                 /*******************************************************************************************
                                  * Выполняем маппинг всех вложенных примитивов
                                  *******************************************************************************************/
-                                mapJsonAttributesToSm(childJsonElement, childRccEntity, smLayoutsMap,
-                                        "$jsonContextPath${childRccEntity.entityName}.", "$smContextPath${childRccEntity.smLayoutName}.")
+                                mapJsonAttributesToSm(arrElement, childRccEntity, smLayoutsMap,
+                                        "$jsonContextPath${childRccEntity.entityName}[$arrIndex].",
+                                        "$smContextPath${childRccEntity.smLayoutName}[$arrIndex].")
 
                                 /*******************************************************************************************
                                  * Если в описании модели SM_CONF_ENTITY_TREE у текущей сущности есть дочерние сущности,
                                  * то рекурсивно обрабатываем их
                                  *******************************************************************************************/
-                                if (globalConfSqlTreeInput.get(childRccEntity.entityName)?.size() > 0)
-                                    mapJsonTreeToSm(childJsonElement, childRccEntity, smLayoutsMap,
-                                            "$jsonContextPath${childRccEntity.entityName}.", "$smContextPath${childRccEntity.smLayoutName}.")
+                                mapJsonTreeToSm(arrElement, childRccEntity, smLayoutsMap,
+                                        "$jsonContextPath${childRccEntity.entityName}[$arrIndex].",
+                                        "$smContextPath${childRccEntity.smLayoutName}[$arrIndex].")
                             }
-                            else{
-                                    if (!childJsonElement.isJsonArray())
-                                        throw new Exception("Unexpected type of JSON element defined as [${childRccEntity.arrayType}] found in message for entity $childEntityId. " +
-                                                "Expected type: [JsonArray], actual type: [${childJsonElement?.getClass()?.getName()}]")
-                                    int arrIndex = 0
-                                    /*******************************************************************************************
-                                     * Цикл по всем элементам массива
-                                     *******************************************************************************************/
-                                    for (JsonElement arrElement : childJsonElement.getAsJsonArray()) {
-                                        arrIndex++
-                                        /*******************************************************************************************
-                                         * Выставим размер динамического массива
-                                         *******************************************************************************************/
-                                        if (childRccEntity.arrayType == ENTITY_ARRAY_TYPE_DYNAMIC) {
-                                            log.debug("${rccEntity.smLayoutName}.setSize('$smContextPath${childRccEntity.smLayoutName}', $arrIndex)")
-                                            smLayoutsMap.get(childRccEntity.smLayoutName).setSize("$smContextPath${childRccEntity.smLayoutName}", arrIndex)
-                                        }
-
-                                        /*******************************************************************************************
-                                         * Выполняем маппинг всех вложенных примитивов
-                                         *******************************************************************************************/
-                                        mapJsonAttributesToSm(arrElement, childRccEntity, smLayoutsMap,
-                                                "$jsonContextPath${childRccEntity.entityName}[$arrIndex].",
-                                                "$smContextPath${childRccEntity.smLayoutName}[$arrIndex].")
-
-                                        /*******************************************************************************************
-                                         * Если в описании модели SM_CONF_ENTITY_TREE у текущей сущности есть дочерние сущности,
-                                         * то рекурсивно обрабатываем их
-                                         *******************************************************************************************/
-                                        mapJsonTreeToSm(arrElement, childRccEntity, smLayoutsMap,
-                                                "$jsonContextPath${childRccEntity.entityName}[$arrIndex].",
-                                                "$smContextPath${childRccEntity.smLayoutName}[$arrIndex].")
-                                    }
-                                    /*******************************************************************************************
-                                     * Выставим каунтер массива
-                                     *******************************************************************************************/
-                                    log.debug("Setting counter...")
-                                    setSmVal(smLayoutsMap.get(rccEntity.smLayoutName),
-                                            getSmArrayCounterName("$smContextPath${childRccEntity.smLayoutName}"),
-                                            arrIndex)
+                            /*******************************************************************************************
+                             * Выставим каунтер массива
+                             *******************************************************************************************/
+                            log.debug("Setting counter...")
+                            setSmVal(smLayoutsMap.get(rccEntity.smLayoutName),
+                                    getSmArrayCounterName("$smContextPath${childRccEntity.smLayoutName}"),
+                                    arrIndex)
 
 
-                            }
-                        } else {
-                            log.info("Entity ${rccEntity.entityName} is not present in input JSON")
                         }
+                    } else {
+                        log.info("Entity ${rccEntity.entityName} is not present in input JSON")
+                    }
 
             }
         }
@@ -2207,7 +2143,7 @@ class JsonProcessingHelpers {
     static Date xmlDateStrToDate(String strDate) {
         try {
             if (!strDate?.trim()) return null
-            DateUtils.parseDate(strDate, JSON_DATE_FORMAT, JSON_DATETIME_FORMAT, JSON_DATETIME_MS_FORMAT, JSON_DATETIME_Z_FORMAT)
+            DateUtils.parseDate(strDate, SM_DATE_FORMAT, JSON_DATETIME_FORMAT, JSON_DATETIME_MS_FORMAT, JSON_DATETIME_Z_FORMAT)
         } catch (Exception e) {
             throw new Exception("Failed to convert string '$strDate' to date: $e")
         }
@@ -2216,7 +2152,7 @@ class JsonProcessingHelpers {
     static String dateToXmlDateStr(Date date) {
         try {
             if (date == null) return null
-            else return new SimpleDateFormat(JSON_DATE_FORMAT).format(date);
+            else return new SimpleDateFormat(SM_DATE_FORMAT).format(date);
         } catch (Exception e) {
             throw new Exception("Failed to convert date '$date' to String: $e")
         }
@@ -2228,6 +2164,32 @@ class JsonProcessingHelpers {
             else return new SimpleDateFormat(JSON_DATETIME_MS_FORMAT).format(date);
         } catch (Exception e) {
             throw new Exception("Failed to convert date '$date' to String: $e")
+        }
+    }
+
+    static void fromJsonToSM(LinkedTreeMap map, String name, String LayoutName, Map<String, IHData> smLayoutsMap) {
+        map.each {key, value->
+            String className = value.getClass().simpleName
+            String name3 = null
+            log.info("key = $key, valueClass = ${value.getClass().simpleName}, props = ${value.properties}")
+            if (name == "") {
+                name3 = "$key"
+            }
+            else {
+                name3 = name + "." + "$key"
+            }
+            if (className == "ArrayList") {
+                int i = 1
+                value.each {value1 ->
+                    log.info ("number111 = ${value1.properties}")
+                    String name2 = name3 + "[$i]"
+                    fromJsonToSM(value1 as LinkedTreeMap, name2, LayoutName, smLayoutsMap)
+                    //log.info("name = $name")
+                    i++
+                }
+            }
+            //log.info("name = $name")
+            setSmVal(smLayoutsMap.get(LayoutName), name3, value)
         }
     }
 
