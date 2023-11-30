@@ -681,17 +681,18 @@ public class PACalc implements Runnable {
         }
 
         Long customerId = getSmVal(smLayoutsMap.get("DECISION_RESULT"), "CUSTOMER_ID") as Long
+        packId = getSmVal(smLayoutsMap.get("DECISION_RESULT"), "PACK_ID") as Long
         String alias = getSmVal(smLayoutsMap.get("OCONTROL"), "ALIAS") as String
-        setSmVal(smLayoutsMap.get("OCONTROL"), SM_FIELD_EDITION_NUMBER, strategyEditionNumberMap.getOrDefault(alias, 0))
-        setSmVal(smLayoutsMap.get("OCONTROL"), SM_FIELD_EDITION_CREATION_DT, strategyCreationDateMap.getOrDefault(alias, new Date(0)))
-        setSmVal(smLayoutsMap.get("OCONTROL"), SM_FIELD_EDITION_SOFTWARE_VERSION, strategySmSoftwareVersionMap.getOrDefault(alias, "0"))
+        setSmValfromJson(smLayoutsMap.get("OCONTROL"), SM_FIELD_EDITION_NUMBER, strategyEditionNumberMap.getOrDefault(alias, 0))
+        setSmValfromJson(smLayoutsMap.get("OCONTROL"), SM_FIELD_EDITION_CREATION_DT, strategyCreationDateMap.getOrDefault(alias, new Date(0)))
+        setSmValfromJson(smLayoutsMap.get("OCONTROL"), SM_FIELD_EDITION_SOFTWARE_VERSION, strategySmSoftwareVersionMap.getOrDefault(alias, "0"))
         log.info("CustIDs starts, custId = $customerId")
         boolean usePoisonPill = false
         long maxMemory = Runtime.getRuntime().maxMemory() //xmX
 
         long usedMemory = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()
         double usedXmxMemRatio = (double) usedMemory / maxMemory
-        if (usedXmxMemRatio > 0.6 && batchQueueSize > batchThreads) {
+        /*if (usedXmxMemRatio > 0.6 && batchQueueSize > batchThreads) {
 
           //Instant startNewDAPE = Instant.now()
           int oldDAPEQueueSize = decisionAgentPoolExecutor.getQueue().size()
@@ -710,19 +711,19 @@ public class PACalc implements Runnable {
 
           //... и создаем новый TPE с размером очереди равным oldDAPEQueueSize*0.9, но не меньше batchThreads
           batchQueueSize = oldDAPEQueueSize * 0.9 as int
-          if (batchQueueSize < batchThreads) batchQueueSize = batchThreads
-          decisionAgentPoolExecutor = createDecisionAgentPool(batchThreads, batchQueueSize)
+          if (batchQueueSize < 4) batchQueueSize = 4
+          decisionAgentPoolExecutor = createDecisionAgentPool(4, 1000)
 
           //Для первого клиента нового TPE (т.е. следующего) используем подход poison-pill, чтобы вызвать принудительный executeBatch накопленных данных в БД
           usePoisonPill = true
           String newDAPELog = "New DAPE created with queue capacity $batchQueueSize, ${getHeapMemInfo()}"
           log.info(newDAPELog)
-        }
+        }*/
 
         try {
 
           loadStrategy(alias)
-
+          traceFlags = 31
           decisionAgentPoolExecutor.execute(new DecisionAgentTask(executionData, traceFlags, customerId, packId, exceptionHandled, usePoisonPill))
           // <--usePoisonPill
 

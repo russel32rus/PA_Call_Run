@@ -38,6 +38,8 @@ import java.sql.PreparedStatement
 import java.sql.ResultSet
 import java.sql.ResultSetMetaData
 import java.sql.Statement
+import java.text.DateFormat
+import java.text.ParseException
 import java.text.SimpleDateFormat
 import java.time.Duration
 import java.time.Instant
@@ -61,6 +63,7 @@ import groovy.swing.SwingBuilder
 import io.swagger.util.Json
 import org.statement.NamedPreparedStatement
 
+import static CustomUtils.getLog
 import static javax.swing.JFrame.EXIT_ON_CLOSE
 import javax.swing.JFrame
 import javax.swing.JOptionPane
@@ -1296,6 +1299,36 @@ class SmProcessingHelpers {
         data.setValue(name, val)
     }
 
+    static void setSmValfromJson(IHData data, String name, Object val) {
+        dataDepth++
+        val = checkValForDate(val)
+        if ((name.contains("DT") || name.contains("DTTM") || name.contains("DATE")) && val == "") val = null as Date
+        log.debug("Set '${data.getLayout()}.$name' SM characteristic value: '$val'")
+        data.setValue(name, val)
+    }
+
+    static Object checkValForDate(Object val) {
+        DateFormat df = new SimpleDateFormat(JSON_DATE_FORMAT)
+        DateFormat sm = new SimpleDateFormat(SM_DATE_FORMAT)
+        Date date
+        try {
+            date = df.parse(val.toString())
+            date = sm.parse(val.toString())
+            date = Date.parse(SM_DATE_FORMAT, val.toString())
+            val = date
+            log.info('changed to date')
+            return val
+        } catch (ParseException e) {
+            log.info('exception in changed to date')
+            return val
+        }
+    }
+
+    static void setSmSizeVal(IHData data, String name, int val){
+        log.debug("${data.getLayout()}.setSize('$name', $val)")
+        data.setSize(name, val)
+    }
+
     static IHData createSmControlBlock(String alias, String signature) {
         IHData controlData = new HierarchicalDatasource("OCONTROL") as IHData
         setSmVal(controlData, "ALIAS", alias)
@@ -2143,7 +2176,7 @@ class JsonProcessingHelpers {
     static Date xmlDateStrToDate(String strDate) {
         try {
             if (!strDate?.trim()) return null
-            DateUtils.parseDate(strDate, SM_DATE_FORMAT, JSON_DATETIME_FORMAT, JSON_DATETIME_MS_FORMAT, JSON_DATETIME_Z_FORMAT)
+            DateUtils.parseDate(strDate, JSON_DATE_FORMAT, JSON_DATETIME_FORMAT, JSON_DATETIME_MS_FORMAT, JSON_DATETIME_Z_FORMAT)
         } catch (Exception e) {
             throw new Exception("Failed to convert string '$strDate' to date: $e")
         }
@@ -2152,7 +2185,7 @@ class JsonProcessingHelpers {
     static String dateToXmlDateStr(Date date) {
         try {
             if (date == null) return null
-            else return new SimpleDateFormat(SM_DATE_FORMAT).format(date);
+            else return new SimpleDateFormat(JSON_DATE_FORMAT).format(date);
         } catch (Exception e) {
             throw new Exception("Failed to convert date '$date' to String: $e")
         }
@@ -2161,7 +2194,7 @@ class JsonProcessingHelpers {
     static String dateToXmlDateTimeStr(Date date) {
         try {
             if (date == null) return null
-            else return new SimpleDateFormat(JSON_DATETIME_MS_FORMAT).format(date);
+            else return new SimpleDateFormat(JSON_DATE_FORMAT).format(date);
         } catch (Exception e) {
             throw new Exception("Failed to convert date '$date' to String: $e")
         }
@@ -2170,8 +2203,9 @@ class JsonProcessingHelpers {
     static void fromJsonToSM(LinkedTreeMap map, String name, String LayoutName, Map<String, IHData> smLayoutsMap) {
         map.each {key, value->
             String className = value.getClass().simpleName
+            log.info("className = ${value.getClass().simpleName}")
             String name3 = null
-            log.info("key = $key, valueClass = ${value.getClass().simpleName}, props = ${value.properties}")
+            //log.info("key = $key, valueClass = ${value.getClass().simpleName}, props = ${value.properties}")
             if (name == "") {
                 name3 = "$key"
             }
@@ -2181,15 +2215,19 @@ class JsonProcessingHelpers {
             if (className == "ArrayList") {
                 int i = 1
                 value.each {value1 ->
-                    log.info ("number111 = ${value1.properties}")
+                    //log.info ("number111 = ${value1.properties}")
                     String name2 = name3 + "[$i]"
+                    //setSmSizeVal(smLayoutsMap.get(LayoutName), name2, i) //TODO не работает почему-то
+                    smLayoutsMap.get(LayoutName).setSize(name3, i)
                     fromJsonToSM(value1 as LinkedTreeMap, name2, LayoutName, smLayoutsMap)
-                    //log.info("name = $name")
+
+                    log.debug("${smLayoutsMap.get(LayoutName)}.setSize('$name', $i)")
                     i++
                 }
-            }
+
+            } else setSmValfromJson(smLayoutsMap.get(LayoutName), name3, value)
             //log.info("name = $name")
-            setSmVal(smLayoutsMap.get(LayoutName), name3, value)
+
         }
     }
 
