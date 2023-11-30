@@ -1301,8 +1301,11 @@ class SmProcessingHelpers {
 
     static void setSmValfromJson(IHData data, String name, Object val) {
         dataDepth++
+        String classname = null
         val = checkValForDate(val)
-        if ((name.contains("DT") || name.contains("DTTM") || name.contains("DATE")) && val == "") val = null as Date
+        if ((name.contains("DT") || name.contains("DTTM") || name.contains("DATE")) && (val == "" || val == null)) val = null as Date
+        if (val != null) classname = val.getClass().simpleName
+        if (classname == "Double" && val != null) val = val as Long
         log.debug("Set '${data.getLayout()}.$name' SM characteristic value: '$val'")
         data.setValue(name, val)
     }
