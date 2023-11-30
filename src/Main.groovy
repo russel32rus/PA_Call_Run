@@ -110,7 +110,6 @@ static void main(String[] args) {
           comboBox(
                   id: 'dbConn',
                   items: dbConnList,
-                  editable: true,
                   actionPerformed: { event -> dbConnName = event.source.selectedItem }
           )
           textArea(
