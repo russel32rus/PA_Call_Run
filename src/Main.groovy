@@ -578,8 +578,8 @@ public class PADown implements Runnable {
             if (val != null) jsonElement.addProperty(name, val)
             break
           case "NullObject":
-            String val = ""
-            jsonElement.addProperty(name, val)
+            //String val = ""
+            //jsonElement.addProperty(name, val)
             break
           case "Integer":
             Number val = map.get("object").getValue() as Number
