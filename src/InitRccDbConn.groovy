@@ -67,7 +67,7 @@ class InitRccDbConn {
          *****************************************************************************/
         start = Instant.now()
         try {
-            //TODO если понадобиваться валидатор данных то можно будет сделать, но надо и поддерживать
+
             //validateDbWithExplainPlan()
             //logEventInfoImmediate("RCC database validation passed", getDurationMs(start), EVENT_VALIDATE_RCC_DB, log)
             log.info("RCC database validation passed")

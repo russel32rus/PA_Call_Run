@@ -3,11 +3,8 @@ import com.experian.eda.framework.runtime.dynamic.IHData
 import com.google.gson.*
 import com.google.gson.internal.LinkedTreeMap
 import groovy.io.FileType
-import groovy.swing.SwingBuilder
-import net.sf.json.JSONObject
 
 import java.awt.*
-import io.swagger.util.Json
 import org.statement.NamedPreparedStatement
 
 import static javax.swing.JFrame.EXIT_ON_CLOSE
@@ -19,10 +16,7 @@ import java.sql.ResultSet
 import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
-
-import permafrost.tundra.data.*
 
 import static CustomUtils.*
 import static DatabaseHelpers.*
@@ -60,12 +54,6 @@ static void main(String[] args) {
     new File(logsPath).mkdirs()
   }
 
-  //Удаляем содержимое input чтобы не забивалось
-  /*String inputPath = "input"
-  new File(inputPath).eachFile (FileType.FILES) { file ->
-    if (file.name.contains(".json")) file.delete()
-  }*/
-
   dbConnsPath = "dbConns"
   def dbConnList = []
   if (new File(dbConnsPath).exists()) {
@@ -77,15 +65,12 @@ static void main(String[] args) {
   log.info("dbConnsList = ${dbConnList.toString()}")
   dbConnName = dbConnList[0].toString()
 
-  Integer CurrentCust, AllCusts = 0
-  String statusText = "Run PA Call"
 
   custIds = null
 
   def StageCdList = ["MIN_REQ","BCS_CHECK", "PA_CALC", "CLD1", "CLD2", "RESTRUCT"]
   stageCd = StageCdList[0].toString()
 
-  def swingBuilder = new SwingBuilder()
   swingBuilder.edt {
     lookAndFeel 'nimbus'
     frame(id: 'frame', title: 'PA CALL Run', size: [230, 350], show: true, locationRelativeTo: null, defaultCloseOperation: EXIT_ON_CLOSE) {
@@ -93,9 +78,16 @@ static void main(String[] args) {
       borderLayout(vgap: 5)
       tabbedPane(border: compoundBorder([emptyBorder(10)]), ) {
         panel(id: 'panel1', name: "Download Json", constraints: BorderLayout.CENTER,  border: compoundBorder([emptyBorder(10), titledBorder('Choose Stage')])) {
+          label(
+                  id: 'downlaodStatusLabel',
+                  text: 'Preparing',
+                  border: compoundBorder([emptyBorder(2)])
+          )
           runButton = button(id: 'btnRun',
                   text: 'Download Json', actionPerformed: {
             custIds = getStringArrFromChar(CustomerIn.text)
+            statusLabel = "In Work"
+            downlaodStatusLabel.setText(statusLabel)
             initFunc()
           })
           comboBox(
@@ -119,8 +111,15 @@ static void main(String[] args) {
 
         }
         panel(name: "Running Json", border: compoundBorder([emptyBorder(10), titledBorder('Choose Stage')])) {
+          label(
+                  id: 'Statuslabel',
+                  text: 'Preparing',
+                  border: compoundBorder([emptyBorder(2)])
+          )
           runButton = button(id: 'btnRun',
                   text: 'Run PA Call', actionPerformed: {
+            statusLabel = "In Work"
+            Statuslabel.setText(statusLabel)
             initPaCalc()
           })
         }
@@ -232,10 +231,9 @@ public class PADown implements Runnable {
 
       rccConn = getRccDbConnection()
       pcsmConn = getPcsmDbConnection()
-      int packSize = 0
 
       //CreateCsvFile()
-
+      boolean custIsFinished = false
       log.info("CustIDs = ${custIds.toString()}")
       custIds.each { c ->
         CurrentCust++
@@ -344,11 +342,8 @@ public class PADown implements Runnable {
 
         ResultSet rsCustomer = packResultSetsMap.get(SQL_ENTITY_CUSTOMER)
         dataDepth = 0L
-        boolean usePoisonPill = false
-        long maxMemory = Runtime.getRuntime().maxMemory() //xmX
-        //ExtBatchSaveResultData.outputPsMap = new ConcurrentHashMap<String, NamedPreparedStatement>()
         log.info("Before while rs.Cust")
-        while (rsCustomer.next()) {
+        while (rsCustomer.next() && !custIsFinished) {
           log.info("rsCustomer = ${rsCustomer.getLong("CUSTOMER_ID")}; customerId = $customerId")
           if (rsCustomer.getLong("CUSTOMER_ID") == customerId) {
 
@@ -370,7 +365,7 @@ public class PADown implements Runnable {
               IHData smTrigMonitoringTask = addHierarchicalDatasource(SM_LAYOUT_TRIG_MONITORING_TASK, smLayoutsMap)
               Exception exceptionHandled = null
 
-              //TODO сделать запись сразу в Json либо сделать из сформированного SmData - Json
+
               try {
                 mapDbRecordToSm(rsCustomer, smLayoutsMap, getGlobalConfSqlEntity(SQL_TREE_INPUT_ROOT, SQL_ENTITY_CUSTOMER), null)
 
@@ -418,7 +413,7 @@ public class PADown implements Runnable {
                *****************************************************************************/
               IHData[] executionData = [smControlData, smCustomerData, smDecisionData, smStateData, smTrigMonitoringTask]
 
-              //TODO формирование входного json вернуться позже с решением
+
               log.info("JSON IN START")
               JsonObject jsonIn = mapSmToJson(executionData)
 
@@ -438,8 +433,9 @@ public class PADown implements Runnable {
               failedRecords.incrementAndGet()
               log.error("Failed to process Customer. Exception: $e")
             }
-
+            custIsFinished = true
           }
+
         }
 
       }
@@ -455,7 +451,7 @@ public class PADown implements Runnable {
       /*****************************************************************************
        * Выполнение всех отложенных запросов (пакетный режим)
        *****************************************************************************/
-      //TODO проследить, что соединения с БД все закрыты
+
       //commitResultBatchAndCloseConnection()
       log.info("Pack done (spr-in-LOCAL, pack size $AllCusts), ${getHeapMemInfo()}")
 
@@ -466,8 +462,9 @@ public class PADown implements Runnable {
       if (!stopSemaphore.get()) // Событие уже опубликовано в DecisionAgentTask
       {
         log.error(errorMessage)
-        JOptionPane.showMessageDialog(new JFrame(), "$errorMessage", "Dialog",
-                JOptionPane.ERROR_MESSAGE)
+        JOptionPane.showMessageDialog(new JFrame(), "$errorMessage", "Dialog", JOptionPane.ERROR_MESSAGE)
+        statusLabel = "Error"
+        swingBuilder.downlaodStatusLabel.setText(statusLabel)
       }
     }
     finally {
@@ -482,7 +479,7 @@ public class PADown implements Runnable {
         log.debug("packPreparedStatementsMap.each -> close()")
         packPreparedStatementsMap.each {
           entity, ps ->
-            Connection conn = ps?.getConnection()
+            //Connection conn = ps?.getConnection()
             //safeCloseConnection(conn)
             ps?.close()
             //safeCloseConnection(conn)
@@ -508,27 +505,16 @@ public class PADown implements Runnable {
         pcsmConn?.close()
         safeCloseConnection(pcsmConn)
         log.debug("rccConn.close() done")
-        JOptionPane.showMessageDialog(new JFrame(), "Done", "Dialog",
-                JOptionPane.INFORMATION_MESSAGE)
+        //JOptionPane.showMessageDialog(new JFrame(), "Done", "Dialog", JOptionPane.INFORMATION_MESSAGE)
+        statusLabel = "Done"
+        swingBuilder.downlaodStatusLabel.setText(statusLabel)
       } catch (Exception e) {
         log.error("Failed to close some DB objects: $e", e)
-        JOptionPane.showMessageDialog(new JFrame(), "Failed to close some DB objects: $e", "Dialog",
-                JOptionPane.ERROR_MESSAGE)
+        statusLabel = "Error"
+        swingBuilder.downlaodStatusLabel.setText(statusLabel)
       }
       finished = true
     }
-  }
-
-  public Boolean isFinished() {
-    return finished
-  }
-
-  public int GetAllCust() {
-    return AllCusts
-  }
-
-  public int GetCurrCust() {
-    return CurrentCust
   }
 
   static JsonObject mapSmToJson(IHData[] data1) {
@@ -540,6 +526,7 @@ public class PADown implements Runnable {
       HierarchicalNode data2 = data.rootNode
       jsonElement = mapNodeToJson(data2)
       jsonIn.add(data.getLayout().toString(), jsonElement)
+      log.info("add json ${jsonObjectToString(jsonElement)}")
     }
 
     return jsonIn
@@ -598,7 +585,7 @@ public class PADown implements Runnable {
         Integer arrIndex = 0
         log.info("arrCount = ${arrCount}")
         if (arrCount > 0) {
-          JsonArray childJsonArray = new JsonArray();
+          JsonArray childJsonArray = new JsonArray()
           for (arrIndex = 1; arrIndex <= arrCount; arrIndex++) {
             JsonObject childJsonElement = new JsonObject()
             for (HashMap<String, Object> map1 : list) {
@@ -609,6 +596,7 @@ public class PADown implements Runnable {
             }
           }
           jsonElement.add(name, childJsonArray)
+          log.info("add json inside ${jsonObjectToString(jsonElement)}")
         }
       }
     }
@@ -624,7 +612,7 @@ void initPaCalc() {
   thrCalc.start()
 }
 
-public class PACalc implements Runnable {
+class PACalc implements Runnable {
 
   private volatile Boolean finished = false
   private volatile Integer CurrentCust = 0
@@ -634,7 +622,7 @@ public class PACalc implements Runnable {
   }
 
   @Override
-  public void run() {
+  void run() {
     try {
       //Берем каждый файл JSON и прогоняем по стратегии
       String inputPath = "input"
@@ -642,9 +630,8 @@ public class PACalc implements Runnable {
       if (new File(inputPath).exists()) {
         new File(inputPath).eachFile(FileType.FILES) { file ->
           if (file.name.contains(".json")) {
-            Gson gson = new Gson();
+            Gson gson = new Gson()
             Map j = gson.fromJson(new FileReader(file), Map.class)
-            HashMap obj = gson.fromJson(new FileReader(file), HashMap);
             jsonList.add(j)
           }
         }
@@ -669,8 +656,7 @@ public class PACalc implements Runnable {
 
         IHData[] executionData = [smControlData, smCustomerData, smDecisionData, smStateData, smTrigMonitoringTask]
 
-        //TODO Парсинг json в SM
-        //Long customerId = json.asJsonObject.get("CUSTOMER").asJsonObject.get("CRE_CACHE_CONFIG_COUNT").getAsLong()
+
         json.each { it ->
           String LayoutName = it.key
           LinkedTreeMap map = new LinkedTreeMap()
@@ -680,44 +666,13 @@ public class PACalc implements Runnable {
         }
 
         Long customerId = getSmVal(smLayoutsMap.get("DECISION_RESULT"), "CUSTOMER_ID") as Long
-        packId = getSmVal(smLayoutsMap.get("DECISION_RESULT"), "PACK_ID") as Long
+        packId = getSmVal(smLayoutsMap.get("DECISION_RESULT"), "PACK_ID") as int
         String alias = getSmVal(smLayoutsMap.get("OCONTROL"), "ALIAS") as String
         setSmValfromJson(smLayoutsMap.get("OCONTROL"), SM_FIELD_EDITION_NUMBER, strategyEditionNumberMap.getOrDefault(alias, 0))
         setSmValfromJson(smLayoutsMap.get("OCONTROL"), SM_FIELD_EDITION_CREATION_DT, strategyCreationDateMap.getOrDefault(alias, new Date(0)))
         setSmValfromJson(smLayoutsMap.get("OCONTROL"), SM_FIELD_EDITION_SOFTWARE_VERSION, strategySmSoftwareVersionMap.getOrDefault(alias, "0"))
         log.info("CustIDs starts, custId = $customerId")
         boolean usePoisonPill = false
-        long maxMemory = Runtime.getRuntime().maxMemory() //xmX
-
-        long usedMemory = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()
-        double usedXmxMemRatio = (double) usedMemory / maxMemory
-        /*if (usedXmxMemRatio > 0.6 && batchQueueSize > batchThreads) {
-
-          //Instant startNewDAPE = Instant.now()
-          int oldDAPEQueueSize = decisionAgentPoolExecutor.getQueue().size()
-          int oldDAPEApproxTaskCount = decisionAgentPoolExecutor.getActiveCount() as int
-          int oldDAPETotalTasks = oldDAPEQueueSize + oldDAPEApproxTaskCount
-
-          String dapePausedLog = "DB2SM mapping paused, usedXmxMemRatio=$usedXmxMemRatio, data depth $dataDepth. Wait old DAPE to do ~$oldDAPETotalTasks tasks (~$oldDAPEQueueSize queued & ~$oldDAPEApproxTaskCount running), ${getHeapMemInfo()}"
-          log.info(dapePausedLog)
-
-          //Ждем пока ранее добавленные в TPE таски завершатся...
-          decisionAgentPoolExecutor.shutdown()
-          decisionAgentPoolExecutor.awaitTermination(30, TimeUnit.MINUTES)
-
-          String oldDAPEdoneLog = "Old DAPE done ~$oldDAPETotalTasks tasks (~$oldDAPEQueueSize queued & ~$oldDAPEApproxTaskCount running) and terminated, ${getHeapMemInfo()}"
-          log.info(oldDAPEdoneLog)
-
-          //... и создаем новый TPE с размером очереди равным oldDAPEQueueSize*0.9, но не меньше batchThreads
-          batchQueueSize = oldDAPEQueueSize * 0.9 as int
-          if (batchQueueSize < 4) batchQueueSize = 4
-          decisionAgentPoolExecutor = createDecisionAgentPool(4, 1000)
-
-          //Для первого клиента нового TPE (т.е. следующего) используем подход poison-pill, чтобы вызвать принудительный executeBatch накопленных данных в БД
-          usePoisonPill = true
-          String newDAPELog = "New DAPE created with queue capacity $batchQueueSize, ${getHeapMemInfo()}"
-          log.info(newDAPELog)
-        }*/
 
         try {
 
@@ -732,8 +687,9 @@ public class PACalc implements Runnable {
           executionData = null
           //ссылку на executionData выше передали в конструктор таска, значит объект таска ее сохранит
 
-          JOptionPane.showMessageDialog(new JFrame(), "$CurrentCust of $AllCusts Done", "Dialog",
-                  JOptionPane.INFORMATION_MESSAGE)
+          //JOptionPane.showMessageDialog(new JFrame(), "$CurrentCust of $AllCusts Done", "Dialog", JOptionPane.INFORMATION_MESSAGE)
+          statusLabel = "In work ($CurrentCust of $AllCusts)"
+          swingBuilder.Statuslabel.setText(statusLabel)
         }
         catch (Exception e) {
           failedRecords.incrementAndGet()
@@ -747,21 +703,10 @@ public class PACalc implements Runnable {
       String custPrepInfo = "Pack DB to SM mapping done, pack size $AllCusts,  ${getHeapMemInfo()}"
       log.info(custPrepInfo)
 
-      //Ожидание завершения работы пула потоков для вызова стратегий
-      log.info("Waiting for DecisionAgent PoolExecutor to finish...")
-
       decisionAgentPoolExecutor.shutdown()
-      log.info("decisionAgentPoolExecutor.shutdown()")
       decisionAgentPoolExecutor.awaitTermination(30, TimeUnit.MINUTES)
-      log.info("decisionAgentPoolExecutor.awaitTermination")
-
-      //long dapeDur = getDurationMs(dapeStart) - totalCustMappingDur
-      int dapePoolSize = decisionAgentPoolExecutor.getCorePoolSize()
-      int maxQ = ((MyThreadPoolExecutor) decisionAgentPoolExecutor).getMaxQ()
 
       log.info("DecisionAgent PoolExecutor completed work and shut down")
-      String dapeInfo = "Pack DAPE done, pack size $AllCusts. Pool: size=$dapePoolSize, max q $maxQ, tasks done by caller thread $tasksExecutedByCallerThreadCount, ${getHeapMemInfo()}"
-      log.info(dapeInfo)
 
       decisionAgentPoolExecutor.purge()
       decisionAgentPoolExecutor = null
@@ -774,31 +719,21 @@ public class PACalc implements Runnable {
       if (!stopSemaphore.get()) // Событие уже опубликовано в DecisionAgentTask
       {
         log.error(errorMessage)
-        JOptionPane.showMessageDialog(new JFrame(), "$errorMessage", "Dialog",
-                JOptionPane.ERROR_MESSAGE)
+        JOptionPane.showMessageDialog(new JFrame(), "$errorMessage", "Dialog", JOptionPane.ERROR_MESSAGE)
+        statusLabel = "Error"
+        swingBuilder.Statuslabel.setText(statusLabel)
       }
     }
     finally {
 
       stopSemaphore.set(false)
       packRunningSemaphore.set(false)
-      JOptionPane.showMessageDialog(new JFrame(), " All Done", "Dialog",
-              JOptionPane.INFORMATION_MESSAGE)
+      //JOptionPane.showMessageDialog(new JFrame(), " All Done", "Dialog", JOptionPane.INFORMATION_MESSAGE)
+      statusLabel = "Done"
+      swingBuilder.Statuslabel.setText(statusLabel)
 
       finished = true
     }
-  }
-
-  public Boolean isFinished() {
-    return finished
-  }
-
-  public int GetAllCust() {
-    return AllCusts
-  }
-
-  public int GetCurrCust() {
-    return CurrentCust
   }
 
 }

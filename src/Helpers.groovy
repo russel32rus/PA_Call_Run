@@ -1,5 +1,4 @@
-import com.experian.eda.framework.runtime.dynamic.HierarchicalNode
-import com.experian.eda.framework.runtime.dynamic.IHData
+
 import com.experian.eda.component.decisionagent.*
 import com.experian.eda.decisionagent.interfaces.os390.BatchJSEMObjectInterface
 import com.experian.eda.framework.runtime.dynamic.*
@@ -14,8 +13,7 @@ import com.google.common.collect.BiMap
 import com.google.common.collect.HashBiMap
 import com.google.common.util.concurrent.ThreadFactoryBuilder
 import com.google.gson.*
-import groovy.json.JsonParserType
-import groovy.json.internal.JsonParserCharArray
+import groovy.swing.SwingBuilder
 import org.apache.commons.csv.CSVFormat
 import org.apache.commons.csv.CSVPrinter
 import org.apache.commons.dbcp2.BasicDataSource
@@ -24,7 +22,6 @@ import org.apache.commons.io.IOUtils
 import org.apache.commons.lang3.StringUtils
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
-import org.statement.NamedPreparedStatement
 import org.apache.commons.lang3.time.DateUtils
 
 import groovy.transform.CompileStatic
@@ -32,59 +29,26 @@ import groovy.transform.CompileStatic
 import javax.management.MBeanServer
 import javax.management.ObjectName
 import javax.sql.DataSource
-import java.lang.management.ManagementFactory
-import java.sql.Connection
-import java.sql.PreparedStatement
-import java.sql.ResultSet
 import java.sql.ResultSetMetaData
 import java.sql.Statement
 import java.text.DateFormat
 import java.text.ParseException
 import java.text.SimpleDateFormat
 import java.time.Duration
-import java.time.Instant
-import java.util.concurrent.ArrayBlockingQueue
-import java.util.concurrent.BlockingQueue
-import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.RejectedExecutionHandler
-import java.util.concurrent.ThreadFactory
-import java.util.concurrent.ThreadPoolExecutor
-import java.util.concurrent.TimeUnit
+import java.util.concurrent.*
 import java.util.jar.JarEntry
 import java.util.jar.JarFile
 
-import com.experian.eda.framework.runtime.dynamic.HierarchicalNode
-import com.experian.eda.framework.runtime.dynamic.IHData
-import com.google.gson.JsonArray
-import com.google.gson.JsonElement
-import com.google.gson.JsonObject
-import groovy.io.FileType
-import groovy.swing.SwingBuilder
-import io.swagger.util.Json
 import org.statement.NamedPreparedStatement
-
-import static CustomUtils.getLog
-import static javax.swing.JFrame.EXIT_ON_CLOSE
-import javax.swing.JFrame
-import javax.swing.JOptionPane
 
 import java.sql.Connection
 import java.sql.ResultSet
 import java.time.Instant
-import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicInteger
-import java.util.concurrent.atomic.AtomicReference
-
-import permafrost.tundra.data.*
 
 import static CustomUtils.*
 import static DatabaseHelpers.*
 import static RccDictionary.*
 import static SmProcessingHelpers.*
-import static InitPcsmDbConn.*
-import static InitRccDbConn.*
-import static ReadGlobalParams.*
 import static ExtBatchSaveResultData.*
 import static JsonProcessingHelpers.*
 import static PADown.*
@@ -101,6 +65,8 @@ class CustomUtils {
 
     static final Logger log = LoggerFactory.getLogger(this)
     public static String dbConnName, dbConnsPath, stageCd
+    public static swingBuilder = new SwingBuilder()
+    public static String statusLabel = null
     public static String[] custIds
     public static int traceFlags
     public static int batchThreads
@@ -307,7 +273,6 @@ class CustomUtils {
      * Метод возвращает значение параметра из локального файла tenant.properties
      * Если значение аргумента throwExIfNull = true, метод выбрасывает исключение если параметр = null
      *******************************************************************************************************/
-    //TODO найти библиотеку где есть getTenantProperties
     static String getTenantProperty(String paramName, boolean throwExIfNull) {
         try {
             String retVal =  (String) getTenantProperties().get(paramName)
@@ -545,15 +510,17 @@ class CustomUtils {
         if (serFile.exists()) FileUtils.forceDelete(serFile)
         unzipStrategy(strategyJarFilePath, smAlias, STRATEGY_BASE_DIR)
 
-        Boolean boll1 = DAManagementInterface.isStrategyLoaded(smAlias)
-        log.info("isStrLoaded = $boll1")
-        String resultCode = DAManagementInterface.loadStrategy(smAlias)
-        log.info("loadStr")
-        boll1 = DAManagementInterface.isStrategyLoaded(smAlias)
-        log.info("isStrLoaded = $boll1")
+        Boolean isStrLoaded = DAManagementInterface.isStrategyLoaded(smAlias)
+        log.info("isStrLoaded = $isStrLoaded")
+        boolean strAlreadyLoaded = isStrLoaded
+        String resultCode = null
+        if (!isStrLoaded) {
+            resultCode = DAManagementInterface.loadStrategy(smAlias)
+            isStrLoaded = true
+        }
 
         String strategyInfo = DAManagementInterface.getStrategyInfo(smAlias)
-        if (resultCode == "" || !strategyInfo?.trim()) {
+        if (isStrLoaded || !strategyInfo?.trim()) {
             log.info("'$smAlias' strategy loaded successfully. Strategy info: [${strategyInfo}]")
             loadedStrategy = smAlias;
         } else throw new SmInitException("Failed to load strategy '$smAlias'. resultCode: [$resultCode] strategyInfo: [$strategyInfo]")
@@ -563,18 +530,20 @@ class CustomUtils {
          *  Извлечение Creation date и Edition number
          ********************************************************************************/
 
-        try {
-            IRuntimeProperties strategyProperties = StrategyCache.getInstance().getStrategyProperties(smAlias)
-            strategyCreationDateMap.put(smAlias,strategyProperties.creationDate)
-            log.debug("creationDate = ${strategyProperties.creationDate}")
-            strategyEditionNumberMap.put(smAlias,strategyProperties.editionNumber)
-            log.debug("editionNumber = ${strategyProperties.editionNumber}")
-            strategySmSoftwareVersionMap.put(smAlias,strategyProperties.smSoftwareVersion)
-            log.debug("strategySmSoftwareVersionMap = ${strategyProperties.smSoftwareVersion}")
-        } catch (Exception e) {
-            String errorMsg = "Failed to extract '$smAlias' srtategy metadata: $e"
-            log.error(errorMsg, e)
-            throw new SmInitException(errorMsg)
+        if (!strAlreadyLoaded) {
+            try {
+                IRuntimeProperties strategyProperties = StrategyCache.getInstance().getStrategyProperties(smAlias)
+                strategyCreationDateMap.put(smAlias,strategyProperties.creationDate)
+                log.debug("creationDate = ${strategyProperties.creationDate}")
+                strategyEditionNumberMap.put(smAlias,strategyProperties.editionNumber)
+                log.debug("editionNumber = ${strategyProperties.editionNumber}")
+                strategySmSoftwareVersionMap.put(smAlias,strategyProperties.smSoftwareVersion)
+                log.debug("strategySmSoftwareVersionMap = ${strategyProperties.smSoftwareVersion}")
+            } catch (Exception e) {
+                String errorMsg = "Failed to extract '$smAlias' srtategy metadata: $e"
+                log.error(errorMsg, e)
+                throw new SmInitException(errorMsg)
+            }
         }
     }
 
@@ -1306,7 +1275,7 @@ class SmProcessingHelpers {
         if ((name.contains("DT") || name.contains("DTTM") || name.contains("DATE")) && (val == "" || val == null)) val = null as Date
         if (val != null) classname = val.getClass().simpleName
         if (classname == "Double" && val != null) val = val as Long
-        log.debug("Set '${data.getLayout()}.$name' SM characteristic value: '$val'")
+        log.debug("Set '${data.getLayout()}.$name' SM characteristic to Json, value: '$val'")
         data.setValue(name, val)
     }
 
@@ -1438,7 +1407,7 @@ class SmProcessingHelpers {
                      *******************************************************************************************************/
                     globalConfSqlTreeInput.get(entityName)?.each {
                         childEntity, childRccEntity ->
-                            if (checkEntityIsActive(childRccEntity, packGroupBy, stageCd)) { //todo check is active?
+                            if (checkEntityIsActive(childRccEntity, packGroupBy, stageCd)) {
                                 /*******************************************************************************************************
                                  * Выполняем маппинг в SM для этой сущности, если она активна
                                  *******************************************************************************************************/
@@ -2220,7 +2189,6 @@ class JsonProcessingHelpers {
                 value.each {value1 ->
                     //log.info ("number111 = ${value1.properties}")
                     String name2 = name3 + "[$i]"
-                    //setSmSizeVal(smLayoutsMap.get(LayoutName), name2, i) //TODO не работает почему-то
                     smLayoutsMap.get(LayoutName).setSize(name3, i)
                     fromJsonToSM(value1 as LinkedTreeMap, name2, LayoutName, smLayoutsMap)
 
@@ -2228,7 +2196,8 @@ class JsonProcessingHelpers {
                     i++
                 }
 
-            } else setSmValfromJson(smLayoutsMap.get(LayoutName), name3, value)
+            }
+            else setSmValfromJson(smLayoutsMap.get(LayoutName), name3, value)
             //log.info("name = $name")
 
         }
