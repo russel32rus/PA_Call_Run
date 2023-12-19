@@ -71,7 +71,7 @@ static void main(String[] args) {
   def StageCdList = ["MIN_REQ","BCS_CHECK", "PA_CALC", "CLD1", "CLD2", "RESTRUCT"]
   stageCd = StageCdList[0].toString()
 
-  swingBuilder.edt {
+  swingBuilder1.edt {
     lookAndFeel 'nimbus'
     frame(id: 'frame', title: 'PA CALL Run', size: [230, 350], show: true, locationRelativeTo: null, defaultCloseOperation: EXIT_ON_CLOSE) {
 
@@ -110,7 +110,7 @@ static void main(String[] args) {
           )
 
         }
-        panel(name: "Running Json", border: compoundBorder([emptyBorder(10), titledBorder('Choose Stage')])) {
+        panel(name: "Running Json", border: compoundBorder([emptyBorder(10)])) {
           label(
                   id: 'Statuslabel',
                   text: 'Preparing',
@@ -122,6 +122,14 @@ static void main(String[] args) {
             Statuslabel.setText(statusLabel)
             initPaCalc()
           })
+          checkBox(
+                  id: 'DaLogEnabled',
+                  text: 'Need DaLog?'
+          )
+          checkBox(
+                  id: 'CsvOutputEnabled',
+                  text: 'Need Csv?'
+          )
         }
       }
 
@@ -233,9 +241,10 @@ public class PADown implements Runnable {
       pcsmConn = getPcsmDbConnection()
 
       //CreateCsvFile()
-      boolean custIsFinished = false
+
       log.info("CustIDs = ${custIds.toString()}")
       custIds.each { c ->
+        boolean custIsFinished = false
         CurrentCust++
         customerId = c.toLong()
         log.info("CustIDs starts, custId = $customerId")
@@ -422,9 +431,9 @@ public class PADown implements Runnable {
               def newFile = new File("input/input_${customerId}.json")
               newFile.write(jsonResponse)
 
-              usePoisonPill = false
+              //usePoisonPill = false
               //только один клиент с usePoisonPill = true для новосозданного TPE после использования памяти на >60%
-              smLayoutsMap = null
+                smLayoutsMap = null
               executionData = null
               //ссылку на executionData выше передали в конструктор таска, значит объект таска ее сохранит
 
@@ -464,7 +473,7 @@ public class PADown implements Runnable {
         log.error(errorMessage)
         JOptionPane.showMessageDialog(new JFrame(), "$errorMessage", "Dialog", JOptionPane.ERROR_MESSAGE)
         statusLabel = "Error"
-        swingBuilder.downlaodStatusLabel.setText(statusLabel)
+        swingBuilder1.downlaodStatusLabel.setText(statusLabel)
       }
     }
     finally {
@@ -507,11 +516,11 @@ public class PADown implements Runnable {
         log.debug("rccConn.close() done")
         //JOptionPane.showMessageDialog(new JFrame(), "Done", "Dialog", JOptionPane.INFORMATION_MESSAGE)
         statusLabel = "Done"
-        swingBuilder.downlaodStatusLabel.setText(statusLabel)
+        swingBuilder1.downlaodStatusLabel.setText(statusLabel)
       } catch (Exception e) {
         log.error("Failed to close some DB objects: $e", e)
         statusLabel = "Error"
-        swingBuilder.downlaodStatusLabel.setText(statusLabel)
+        swingBuilder1.downlaodStatusLabel.setText(statusLabel)
       }
       finished = true
     }
@@ -599,6 +608,13 @@ public class PADown implements Runnable {
           log.info("add json inside ${jsonObjectToString(jsonElement)}")
         }
       }
+      if (classname == 'HierarchicalNode' && !(name.contains('[') && name.contains(']'))) { //Для сущностей не массивов
+        JsonObject childJsonElement = new JsonObject()
+        childJsonElement = mapNodeToJson(map.get("object") as HierarchicalNode)
+        //JsonArray childJsonArray = new JsonArray()
+        //childJsonArray.add(childJsonElement)
+        jsonElement.add(name, childJsonElement)
+      }
     }
 
     return jsonElement
@@ -643,6 +659,13 @@ class PACalc implements Runnable {
        *******************************************************************************************************/
       decisionAgentPoolExecutor = createDecisionAgentPool(4, 1000)
 
+      if (swingBuilder1.DaLogEnabled.selected == true) traceFlags = 31 else traceFlags = 0
+      if (swingBuilder1.CsvOutputEnabled.selected == true) csvOutput = true else csvOutput = false
+
+      if (csvOutput == true) {
+        CreateCsvFile()
+      }
+
       jsonList.each { json ->
         CurrentCust++
 
@@ -661,7 +684,6 @@ class PACalc implements Runnable {
           String LayoutName = it.key
           LinkedTreeMap map = new LinkedTreeMap()
           map = it.value
-          LayoutName = it.key
           fromJsonToSM(map, "", LayoutName, smLayoutsMap)
         }
 
@@ -677,7 +699,7 @@ class PACalc implements Runnable {
         try {
 
           loadStrategy(alias)
-          traceFlags = 31
+          //traceFlags = 31
           decisionAgentPoolExecutor.execute(new DecisionAgentTask(executionData, traceFlags, customerId, packId, exceptionHandled, usePoisonPill))
           // <--usePoisonPill
 
@@ -689,7 +711,7 @@ class PACalc implements Runnable {
 
           //JOptionPane.showMessageDialog(new JFrame(), "$CurrentCust of $AllCusts Done", "Dialog", JOptionPane.INFORMATION_MESSAGE)
           statusLabel = "In work ($CurrentCust of $AllCusts)"
-          swingBuilder.Statuslabel.setText(statusLabel)
+          swingBuilder1.Statuslabel.setText(statusLabel)
         }
         catch (Exception e) {
           failedRecords.incrementAndGet()
@@ -721,7 +743,7 @@ class PACalc implements Runnable {
         log.error(errorMessage)
         JOptionPane.showMessageDialog(new JFrame(), "$errorMessage", "Dialog", JOptionPane.ERROR_MESSAGE)
         statusLabel = "Error"
-        swingBuilder.Statuslabel.setText(statusLabel)
+        swingBuilder1.Statuslabel.setText(statusLabel)
       }
     }
     finally {
@@ -730,7 +752,7 @@ class PACalc implements Runnable {
       packRunningSemaphore.set(false)
       //JOptionPane.showMessageDialog(new JFrame(), " All Done", "Dialog", JOptionPane.INFORMATION_MESSAGE)
       statusLabel = "Done"
-      swingBuilder.Statuslabel.setText(statusLabel)
+      swingBuilder1.Statuslabel.setText(statusLabel)
 
       finished = true
     }

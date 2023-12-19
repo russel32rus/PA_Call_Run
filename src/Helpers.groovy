@@ -5,6 +5,7 @@ import com.experian.eda.framework.runtime.dynamic.*
 
 import com.codahale.metrics.MetricRegistry
 import com.codahale.metrics.health.HealthCheckRegistry
+import com.experian.stratman.datasources.runtime.IData
 import com.google.gson.internal.LinkedTreeMap
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
@@ -13,16 +14,22 @@ import com.google.common.collect.BiMap
 import com.google.common.collect.HashBiMap
 import com.google.common.util.concurrent.ThreadFactoryBuilder
 import com.google.gson.*
+import groovy.json.JsonSlurper
+import groovy.json.JsonSlurperClassic
 import groovy.swing.SwingBuilder
 import org.apache.commons.csv.CSVFormat
 import org.apache.commons.csv.CSVPrinter
 import org.apache.commons.dbcp2.BasicDataSource
-import org.apache.commons.io.FileUtils
-import org.apache.commons.io.IOUtils
 import org.apache.commons.lang3.StringUtils
+import org.apache.poi.hssf.usermodel.HSSFWorkbook
+import org.apache.poi.ss.usermodel.Cell
+import org.apache.poi.ss.usermodel.Row
+import org.apache.poi.ss.usermodel.Sheet
+import org.apache.poi.ss.usermodel.Workbook
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.apache.commons.lang3.time.DateUtils
+import org.apache.commons.io.*
 
 import groovy.transform.CompileStatic
 
@@ -65,10 +72,11 @@ class CustomUtils {
 
     static final Logger log = LoggerFactory.getLogger(this)
     public static String dbConnName, dbConnsPath, stageCd
-    public static swingBuilder = new SwingBuilder()
+    public static swingBuilder1 = new SwingBuilder()
     public static String statusLabel = null
     public static String[] custIds
     public static int traceFlags
+    public static boolean csvOutput
     public static int batchThreads
     public static PADown paDown = null
     public static Thread thrDown = null
@@ -1274,8 +1282,8 @@ class SmProcessingHelpers {
         val = checkValForDate(val)
         if ((name.contains("DT") || name.contains("DTTM") || name.contains("DATE")) && (val == "" || val == null)) val = null as Date
         if (val != null) classname = val.getClass().simpleName
-        if (classname == "Double" && val != null) val = val as Long
-        log.debug("Set '${data.getLayout()}.$name' SM characteristic to Json, value: '$val'")
+        if (classname == "Double" && val != null) val = val as Double
+        log.debug("Set '${data.getLayout()}.$name' SM characteristic from Json, value: '$val'")
         data.setValue(name, val)
     }
 
@@ -1285,8 +1293,8 @@ class SmProcessingHelpers {
         Date date
         try {
             date = df.parse(val.toString())
-            date = sm.parse(val.toString())
-            date = Date.parse(SM_DATE_FORMAT, val.toString())
+            //date = sm.parse(val.toString())
+            //date = Date.parse(SM_DATE_FORMAT, val.toString())
             val = date
             log.info('changed to date')
             return val
@@ -1539,7 +1547,7 @@ class DecisionAgentTask implements Runnable {
             failedRecords.incrementAndGet()
             log.error("Failed to process Customer in Pack: $e")
         } finally {
-            SaveDALog(customerId)
+            if (traceFlags > 0) SaveDALog(customerId)
             executionData = null // данные текущего клиента больше не нужны...
         }
     }
@@ -1609,19 +1617,29 @@ class ExtBatchSaveResultData {
     }
 
     static void CreateCsvFile(){
-        def csvTable = new File("output/csvTable.csv")
         String[] csvColumns = new File('input\\csvColumns.txt') as String[]
-        csvTable.withWriter { fileWriter ->
-            def csvFilePrinter = new CSVPrinter(fileWriter, CSVFormat.DEFAULT)
-            String str = ''
-            csvColumns.each {csvColumn->
-
-                str = str + "$csvColumn,"
-                csvFilePrinter.print(str)
-            }
-            log.info("str = $str")
-            csvFilePrinter.printRecord(csvColumns)
+        ArrayList<HashMap<String, String>> list = new ArrayList<HashMap<String, String>>()
+        csvColumns.each { input ->
+            HashMap<String, String> map = new HashMap<String, String>()
+            def str = input.split(/\,/).collect{it as String}
+            map.put("layout", str[0])
+            map.put("object", str[1])
+            list.add(map)
         }
+
+        Workbook wb = new HSSFWorkbook()
+        Sheet sheet = wb.createSheet("Table")
+        Row header = sheet.createRow(0)
+        Integer cellid = 0
+        for (HashMap<String, String> map : list) {
+            Cell cell = header.createCell(cellid++)
+            String name = map.get("layout") + '.' + map.get("object")
+            cell.setCellValue(name)
+        }
+
+        FileOutputStream out = new FileOutputStream(new File('output\\csvTable.xls'))
+        wb.write(out)
+        out.close()
     }
 
     synchronized static void SaveResultData(IHData[] smDataArr, int batchSize, boolean usePoisonPill) {
@@ -1647,13 +1665,20 @@ class ExtBatchSaveResultData {
         //Формирование JSON Файла
         log.info("Building SPR JSON response...")
         JsonObject responseRoot = mapSmToJson(smDataArr)
+
+        def aaa123 = smDataMap.get('DECISION_RESULT').getValue('PTI[1].LIABILITY_MAX_PAY_AMT')
+
         String jsonResponse = jsonObjectToString(responseRoot)
         def newFile = new File("output/output_${customerIdd}.json")
         newFile.write(jsonResponse)
         log.info("Successfully built JSON response")
 
-        String[] csvColumns = new File('input\\csvColumns.txt') as String[]
-        String csvRow = ''
+        if (csvOutput == true) {
+            //CreateCsvFile()
+
+        }
+
+
         /*File csvTable = new File('output\\csvTable.csv')
         csvColumns.each{input->
 
@@ -1681,27 +1706,7 @@ class ExtBatchSaveResultData {
             def csvFilePrinter = new CSVPrinter(fileWriter, CSVFormat.DEFAULT)
             csvFilePrinter.printRecord(csvRow)
         }
-
-        try {
-            String batch_id1 = responseRoot.asJsonObject.keySet().toString() //Список сущностей
-            log.info("obj.toSting = ${batch_id1}")
-            log.info("obj.toSting = ${responseRoot.asJsonObject.get("DECISION_RESULT").asJsonObject.get("BATCH_ID")}")
-
-                def slurp = new groovy.json.JsonSlurper()
-                def obj = slurp.parseText(jsonResponse)
-
-                //Алгоритм - По порядку смотрим элементы, если элемент как JsonObject, то идем дальше, если как JsonArray, то идем по коллекции с номером элемента
-
-                log.info("dec_res is array? = ${responseRoot.asJsonObject.get("DECISION_RESULT").jsonArray}")
-                log.info("dec_res is array? = ${responseRoot["DECISION_RESULT"].getClass().simpleName}")
-                log.info("EXT_CALL_ROUTE is array? = ${responseRoot["DECISION_RESULT"].getClass()}")
-                log.info("collect model_request = ${obj['EXT_CALL_ROUTE']}")
-                log.info("collect model_request = ${obj['EXT_CALL_ROUTE'].collect()['MODEL_REQUEST'][0].toString()}")
-                log.info("model_cd = ${obj['EXT_CALL_ROUTE'].collect()['MODEL_REQUEST'][1].collect()['MODEL_CD'][0]}")
-            }
-            catch (Exception e) {
-                throw new Exception(e.getMessage())
-            }*/
+        */
 
     }
 
@@ -2196,6 +2201,8 @@ class JsonProcessingHelpers {
                     i++
                 }
 
+            } else if (className == "LinkedTreeMap") {
+                fromJsonToSM(value as LinkedTreeMap, name3, LayoutName, smLayoutsMap)
             }
             else setSmValfromJson(smLayoutsMap.get(LayoutName), name3, value)
             //log.info("name = $name")
