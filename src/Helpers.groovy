@@ -22,6 +22,7 @@ import org.apache.commons.csv.CSVPrinter
 import org.apache.commons.dbcp2.BasicDataSource
 import org.apache.commons.lang3.StringUtils
 import org.apache.poi.hssf.usermodel.HSSFWorkbook
+import org.apache.poi.poifs.filesystem.POIFSFileSystem
 import org.apache.poi.ss.usermodel.Cell
 import org.apache.poi.ss.usermodel.Row
 import org.apache.poi.ss.usermodel.Sheet
@@ -59,6 +60,8 @@ import static SmProcessingHelpers.*
 import static ExtBatchSaveResultData.*
 import static JsonProcessingHelpers.*
 import static PADown.*
+import static PACalc.*
+import static ReadGlobalParams.*
 
 
 import java.util.concurrent.atomic.AtomicBoolean
@@ -219,6 +222,8 @@ class CustomUtils {
     public static final int ERR_INIT_STRATEGY = 2000
     public static final int EVENT_INIT_CONF = 10                // Инициализация конфигурации
     public static final int EVENT_DB_STAT = 4
+
+    public static ArrayList<HashMap<String, String>> csvColumnsList = new ArrayList<HashMap<String, String>>() //Лист из колонок для вывода
 
     /*******************************************************************************************************
      * Метод возвращает значение глобального параметра СПР
@@ -1030,22 +1035,26 @@ class SmProcessingHelpers {
         log.debug("Done!")
     }
 
-    static void loadCustomerInfo(Connection rccConn, Long customerId, Long StageCd) {
+    static void loadCustomerInfo(Connection rccConn, Long customerId, Long StageCdInt, String StageCdStr) {
         log.debug("Preparing CustomerInfo select statement... ")
         NamedPreparedStatement ps
         ps = new NamedPreparedStatement(rccConn, SM_CONF_CUSTOMERINFO_QUERY, ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_READ_ONLY)
         ps.setFetchSize(fetchSize)
-        setRccSelectQueryParams(ps, customerId, StageCd)
+        setRccSelectQueryParams(ps, customerId, StageCdInt)
         //packPreparedStatementsMap.put(SQL_ENTITY_CUSTOMER, ps)
         ResultSet rsCust = ps.executeQuery()
         log.info("rsCust = ${rsCust.toString()}")
-        String smAlias = getSmAliasFromStageCd(StageCd.toString())
+        String smAlias = getSmAliasFromStageCd(StageCdStr)
         while (rsCust.next()) {
             packId = rsCust.getInt("PACK_ID")
             waveId = rsCust.getInt("WAVE_ID")
             packGroupBy = rsCust.getLong("PACK_GROUP_BY")
             //Если CLD1, RESTRUCT или (MIN_REQ и packGroupBy = 0 (null)) то пересчитываем packGroupBy
-            if (packGroupBy == 0) packGroupBy = packGroupByFromInitCall.get(smAlias)
+            if (((packGroupBy == null || packGroupBy ==0) && StageCdInt == 1) || (StageCdInt == 4 || StageCdInt == 25)) {
+                loadStrategy(smAlias)
+                executeInitCall(smAlias)
+                packGroupBy = packGroupByFromInitCall.get(smAlias)
+            }
             batchId = rsCust.getInt("BATCH_ID")
             log.info("CustomerInfo custId: ${rsCust.getLong("CUSTOMER_ID")}, packId = $packId, waveId = $waveId, packGroupBy = $packGroupBy")
         }
@@ -1618,20 +1627,20 @@ class ExtBatchSaveResultData {
 
     static void CreateCsvFile(){
         String[] csvColumns = new File('input\\csvColumns.txt') as String[]
-        ArrayList<HashMap<String, String>> list = new ArrayList<HashMap<String, String>>()
+
         csvColumns.each { input ->
             HashMap<String, String> map = new HashMap<String, String>()
             def str = input.split(/\,/).collect{it as String}
             map.put("layout", str[0])
             map.put("object", str[1])
-            list.add(map)
+            csvColumnsList.add(map)
         }
 
         Workbook wb = new HSSFWorkbook()
         Sheet sheet = wb.createSheet("Table")
         Row header = sheet.createRow(0)
         Integer cellid = 0
-        for (HashMap<String, String> map : list) {
+        for (HashMap<String, String> map : csvColumnsList) {
             Cell cell = header.createCell(cellid++)
             String name = map.get("layout") + '.' + map.get("object")
             cell.setCellValue(name)
@@ -1660,7 +1669,9 @@ class ExtBatchSaveResultData {
         } else {
             setSmVal(smStateData, SM_FIELD_PACK_GROUP_BY, PACK_GROUP_BY_DEF_VAL)
         }*/
-        setSmVal(smStateData, SM_FIELD_PACK_GROUP_BY, calcPackGroupBy(smStateData))
+
+        //TODO убрал так как не надо особо
+        //setSmVal(smStateData, SM_FIELD_PACK_GROUP_BY, calcPackGroupBy(smStateData))
 
         //Формирование JSON Файла
         log.info("Building SPR JSON response...")
@@ -1673,11 +1684,27 @@ class ExtBatchSaveResultData {
         newFile.write(jsonResponse)
         log.info("Successfully built JSON response")
 
+        Integer cnt = saveCounter.toInteger() + 1
         if (csvOutput == true) {
-            //CreateCsvFile()
+            POIFSFileSystem fs = new POIFSFileSystem(new FileInputStream('output\\csvTable.xls'))
+            Workbook wb = new HSSFWorkbook(fs)
+            Sheet sheet = wb.getSheet('Table')
+            Row header = sheet.createRow(cnt)
+            Integer cellid = 0
+            for (HashMap<String, String> map : csvColumnsList) {
+                Cell cell = header.createCell(cellid++)
+                String val = smDataMap.get(map.get("layout")).getValue(map.get("object")).toString()
+                //String name = map.get("layout") + '.' + map.get("object")
+                cell.setCellValue(val)
+            }
+
+            FileOutputStream out = new FileOutputStream(new File('output\\csvTable.xls'))
+            wb.write(out)
+            out.close()
 
         }
 
+        saveCounter.incrementAndGet()
 
         /*File csvTable = new File('output\\csvTable.csv')
         csvColumns.each{input->

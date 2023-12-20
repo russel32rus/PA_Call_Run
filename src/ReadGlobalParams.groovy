@@ -119,8 +119,8 @@ class ReadGlobalParams {
                         /********************************************************************************
                          *  Инициализация стратегий - если в имени параметра есть строка "STRATEGY_ALIAS"
                          ********************************************************************************/
-                        loadStrategy(paramVal as String)
-                        loadStrategy(RESTRUCT_STRATEGY_ALIAS) //todo вынести в SM_CONF
+                        //loadStrategy(paramVal as String)
+                        //loadStrategy(RESTRUCT_STRATEGY_ALIAS) //todo убрали так как не используется
                     }
                 }
                 log.debug("globalConf = ${globalConf}")
@@ -185,13 +185,10 @@ class ReadGlobalParams {
             //logEventInfoImmediate("$SM_CONF_BATCH_MAP_TABLE_NAME configuration table loaded successfully", getDurationMs(start), EVENT_INIT_CONF, log)
             log.info("$SM_CONF_BATCH_MAP_TABLE_NAME configuration table loaded successfully")
 
-            /*****************************************************************************
-             *  Вызов стратегии INIT_CALL для PA_Call и new PA_Restruct
-             *****************************************************************************/
-
-            String smAlias = getGlobalParam(GLOBAL_PARAM_BATCH_STRATEGY_ALIAS, true) //smAlias = PA_Call (из SM_CONF)
-            executeInitCall(smAlias)
-            executeInitCall(RESTRUCT_STRATEGY_ALIAS)
+            //TODO убрано так как не нужно на данном этапе
+            //String smAlias = getGlobalParam(GLOBAL_PARAM_BATCH_STRATEGY_ALIAS, true) //smAlias = PA_Call (из SM_CONF)
+            //executeInitCall(smAlias)
+            //executeInitCall(RESTRUCT_STRATEGY_ALIAS)
         }
         catch (SmCallException e) {
             logFatalErrorAndShutdown(e.getMessage(), EVENT_INIT_STRATEGY, ERR_INIT_STRATEGY, log, e)

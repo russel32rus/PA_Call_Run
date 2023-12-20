@@ -258,7 +258,7 @@ public class PADown implements Runnable {
           case "RESTRUCT": StageCdInt = 25; break
           default: StageCdInt = 1
         }
-        loadCustomerInfo(rccConn, customerId, StageCdInt)
+        loadCustomerInfo(rccConn, customerId, StageCdInt, stageCd)
 
         currentWaveId.set(waveId.toLong())
         currentBatchId.set(batchId.toLong())
@@ -433,7 +433,7 @@ public class PADown implements Runnable {
 
               //usePoisonPill = false
               //только один клиент с usePoisonPill = true для новосозданного TPE после использования памяти на >60%
-                smLayoutsMap = null
+              smLayoutsMap = null
               executionData = null
               //ссылку на executionData выше передали в конструктор таска, значит объект таска ее сохранит
 
@@ -631,8 +631,8 @@ void initPaCalc() {
 class PACalc implements Runnable {
 
   private volatile Boolean finished = false
-  private volatile Integer CurrentCust = 0
-  private volatile int AllCusts = 0
+  public static Integer CurrentCust = 0
+  public volatile int AllCusts = 0
 
   PACalc() {
   }
@@ -699,7 +699,7 @@ class PACalc implements Runnable {
         try {
 
           loadStrategy(alias)
-          //traceFlags = 31
+
           decisionAgentPoolExecutor.execute(new DecisionAgentTask(executionData, traceFlags, customerId, packId, exceptionHandled, usePoisonPill))
           // <--usePoisonPill
 
