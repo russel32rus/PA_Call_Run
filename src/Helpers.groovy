@@ -1,4 +1,3 @@
-
 import com.experian.eda.component.decisionagent.*
 import com.experian.eda.decisionagent.interfaces.os390.BatchJSEMObjectInterface
 import com.experian.eda.framework.runtime.dynamic.*
@@ -16,6 +15,8 @@ import com.google.gson.*
 import groovy.swing.SwingBuilder
 import org.apache.commons.dbcp2.BasicDataSource
 import org.apache.commons.lang3.StringUtils
+import org.apache.log4j.FileAppender
+import org.apache.log4j.SimpleLayout
 import org.apache.poi.hssf.usermodel.HSSFWorkbook
 import org.apache.poi.poifs.filesystem.POIFSFileSystem
 import org.apache.poi.ss.usermodel.Cell
@@ -47,6 +48,8 @@ import org.statement.NamedPreparedStatement
 import java.sql.Connection
 import java.sql.ResultSet
 import java.time.Instant
+import java.util.logging.FileHandler
+import java.util.logging.SimpleFormatter
 
 import static CustomUtils.*
 import static DatabaseHelpers.*
@@ -1491,8 +1494,8 @@ class SmProcessingHelpers {
 @CompileStatic
 class DecisionAgentTask implements Runnable {
 
-    private static final Logger log = LoggerFactory.getLogger(this)
-    private static final String recordTracePrefix = "CustId:"
+    private static final Logger log = LoggerFactory.getLogger(DecisionAgentTask.class)
+    private static final String recordTracePrefix = "CustId12344:"
 
     private IHData[] executionData
     private int traceFlags
@@ -1505,7 +1508,7 @@ class DecisionAgentTask implements Runnable {
     DecisionAgentTask(IHData[] executionData, int traceFlags, Long customerId, Long packId, Exception exceptionHandled, boolean usePoisonPill) {
         this.executionData = executionData
         this.traceFlags = traceFlags
-        //recordTraceId = recordTracePrefix + customerId.toString()
+        //this.recordTraceId = recordTracePrefix + customerId.toString()
         this.customerId = customerId
         this.packId = packId
         this.exceptionHandled = exceptionHandled
@@ -1514,16 +1517,16 @@ class DecisionAgentTask implements Runnable {
 
     void run() {
         try {
-            if (customerId != null) Thread.currentThread().setName("CustId:$customerId")
 
+            if (customerId != null) Thread.currentThread().setName("CustId_$customerId")
             if (exceptionHandled != null) throw new SmCallException(exceptionHandled.getMessage())
 
-            Instant start = Instant.now()
             log.info("Executing DA call...")
             int daReturnCode = -1
             try {
                 log.info("TraceFlags = $traceFlags")
                 log.info("recordTraceId = $recordTraceId")
+
                 daReturnCode = BatchJSEMObjectInterface.instance().execute(executionData, traceFlags, recordTraceId)
                 //package com.experian.eda.framework.runtime.common.exceptions и trace; содержится ошибка
             } catch (Exception e) {
@@ -1551,7 +1554,7 @@ class DecisionAgentTask implements Runnable {
             failedRecords.incrementAndGet()
             log.error("Failed to process Customer in Pack: $e")
         } finally {
-            if (traceFlags > 0) SaveDALog(customerId)
+            //if (traceFlags > 0) SaveDALog(customerId)
             executionData = null // данные текущего клиента больше не нужны...
         }
     }
@@ -1659,11 +1662,7 @@ class ExtBatchSaveResultData {
 
         // Считаем значение PackGroupBy (битовые флаги)
         log.info(".Calculating packGroupBy value..")
-        /*if (getTenantProperty("mapping.optimization.disable", false) != "true") {
-            setSmVal(smStateData, SM_FIELD_PACK_GROUP_BY, calcPackGroupBy(smStateData))
-        } else {
-            setSmVal(smStateData, SM_FIELD_PACK_GROUP_BY, PACK_GROUP_BY_DEF_VAL)
-        }*/
+
 
         //TODO убрал так как не надо особо
         //setSmVal(smStateData, SM_FIELD_PACK_GROUP_BY, calcPackGroupBy(smStateData))
@@ -1671,8 +1670,6 @@ class ExtBatchSaveResultData {
         //Формирование JSON Файла
         log.info("Building SPR JSON response...")
         JsonObject responseRoot = mapSmToJson(smDataArr)
-
-        def aaa123 = smDataMap.get('DECISION_RESULT').getValue('PTI[1].LIABILITY_MAX_PAY_AMT')
 
         String jsonResponse = jsonObjectToString(responseRoot)
         def newFile = new File("output/output_${customerIdd}.json")
@@ -1698,37 +1695,7 @@ class ExtBatchSaveResultData {
             out.close()
 
         }
-
         saveCounter.incrementAndGet()
-
-        /*File csvTable = new File('output\\csvTable.csv')
-        csvColumns.each{input->
-
-            log.info("csv = $input")
-            def str = input.split(/\./).collect{it as String}
-            str.each{obj->
-                String objName = obj
-                Integer objIndex = 0
-                if (obj.contains('[')) {
-                    objName = obj.substring(0,obj.indexOf('['))
-                    objIndex = obj.substring(obj.indexOf('[') + 1, obj.indexOf(']') ) as Integer
-                }
-                log.info("csvName = $objName csvIndex = $objIndex")
-                if (jsonObj["$objName"].getClass().simpleName == 'JsonObject') {
-                    jsonObj = jsonObj["$objName"]
-                } else {
-                    jsonObj = jsonObj["$objName"].collect()[objIndex]
-                }
-            }
-            def finalval = jsonObj
-            csvRow << "$finalval,"
-
-        }
-        csvTable.withWriter {fileWriter ->
-            def csvFilePrinter = new CSVPrinter(fileWriter, CSVFormat.DEFAULT)
-            csvFilePrinter.printRecord(csvRow)
-        }
-        */
 
     }
 

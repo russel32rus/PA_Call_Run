@@ -33,6 +33,7 @@ static void main(String[] args) {
   //Пишем настройки для работы DA, в теории не работает
   //System.setProperty("configDirs", "C:\\Users\\russe\\OneDrive\\Desktop\\PA_Call_Run\\env")
   System.setProperty("client.solution.home", System.getProperty("user.dir"))
+  //System.setProperty("custId", "_")
 
   //Удаляем содержимое оутпута чтобы не забивалось
   String folderPath = "output"
@@ -52,6 +53,23 @@ static void main(String[] args) {
     }
   } else {
     new File(logsPath).mkdirs()
+  }
+
+  //Создаем input если нет
+  String inputPath = "input"
+  if (new File(inputPath).exists()) {
+    if (!(new File(inputPath + "\\csvColumns.txt").exists())) {
+      PrintWriter writer = new PrintWriter("csvColumns.txt", "UTF-8")
+      writer.println("DECISION_RESULT,CUSTOMER_ID")
+      writer.close()
+    }
+  } else {
+    new File(inputPath).mkdirs()
+    if (!(new File(inputPath + "\\csvColumns.txt").exists())) {
+      PrintWriter writer = new PrintWriter("csvColumns.txt", "UTF-8")
+      writer.println("DECISION_RESULT,CUSTOMER_ID")
+      writer.close()
+    }
   }
 
   dbConnsPath = "dbConns"
@@ -191,9 +209,6 @@ public class PADown implements Runnable {
 
     /*Вызываем подключение к БД РКК*/
     initRccDbConn()
-
-    //custIds = swingBuilder.CustomerIn.text
-    //custIds = new File('input\\custIDs.txt')
 
     AllCusts = custIds.size()
 

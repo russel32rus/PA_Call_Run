@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<Configuration status="debug"  monitorInterval="5">
+
+    <Appenders>
+        <File name="transaction-rollingFileAppender" fileName="${sys:user.dir}\logs\transaction.log" append="false">
+            <PatternLayout pattern="%date [%thread] %-5level %logger{50} - %msg{'[\r\n]+','&#10;&gt;&gt;&gt;'}%n" charset="UTF-8"/>
+        </File>
+        <File name="error-rollingFileAppender" fileName="${sys:user.dir}\logs\error.log" append="false">
+            <PatternLayout pattern="%date [%thread] %-5level %logger{25} - %msg{'[\r\n]+','&#10;&gt;&gt;&gt;'}%n" charset="UTF-8"/>
+            <LevelRangeFilter maxLevel="ERROR" onMismatch="DENY" onMatch="ACCEPT"/>
+        </File>
+        <!--<File name="da-appender" fileName="C:/Users/russe/OneDrive/Desktop/PA_Call_Run/logs/da.log" append="false">
+            <PatternLayout pattern="%date %-5level %logger{25} - %msg{'[\r\n]+','&#10;&gt;&gt;&gt;'}%n" charset="UTF-8"/>
+        </File>-->
+        <Console name="STDOUT">
+            <PatternLayout pattern="%date [%thread] %level %logger{25} - %msg{'[\r\n]+','&#10;&gt;&gt;&gt;'}%n"/>
+        </Console>
+        <Routing name="Routing">
+            <Routes pattern="$${event:ThreadName}">
+                <Route>
+                    <RollingFile name="Rolling-${event:ThreadName}"
+                                 fileName="${sys:user.dir}\output\log_${event:ThreadName}.log"
+                                 filePattern="${sys:user.dir}\output\log_${event:ThreadName}.log.%d{yyyy-MM-dd}">
+                        <PatternLayout pattern="%date [%thread] %-5level %logger{25} - %msg{'[\r\n]+','&#10;&gt;&gt;&gt;'}%n" />
+                        <TimeBasedTriggeringPolicy />
+                    </RollingFile>
+                </Route>
+            </Routes>
+        </Routing>
+    </Appenders>
+
+    <Loggers>
+        <Logger name="com.experian.eda.runtime.common.da" level="INFO" additivity="false">
+            <AppenderRef ref="Routing"/>
+        </Logger>
+        <Logger name="com.experian" level="INFO" additivity="false">
+            <AppenderRef ref="error-rollingFileAppender" />
+            <AppenderRef ref="transaction-rollingFileAppender" />
+            <!--<AppenderRef ref="STDOUT"/>-->
+        </Logger>
+
+        <Logger name="ru.vtb.spr" level="DEBUG" additivity="false">
+            <AppenderRef ref="error-rollingFileAppender" />
+            <AppenderRef ref="transaction-rollingFileAppender" />
+            <!--<AppenderRef ref="STDOUT"/>-->
+        </Logger>
+
+        <Logger name="com.experian.eda.enterprise.main" level="INFO" additivity="false">
+            <AppenderRef ref="error-rollingFileAppender" />
+            <AppenderRef ref="transaction-rollingFileAppender" />
+            <!--<AppenderRef ref="STDOUT"/>-->
+        </Logger>
+
+        <Logger name="com.experian.eda.enterprise.ipf" level="WARN" additivity="false">
+            <AppenderRef ref="error-rollingFileAppender" />
+            <AppenderRef ref="transaction-rollingFileAppender" />
+            <!--<AppenderRef ref="STDOUT"/>-->
+        </Logger>
+
+        <Logger name="com.experian.eda.enterprise.ipf.IpfInitializer" level="INFO" additivity="false">
+            <AppenderRef ref="error-rollingFileAppender" />
+            <AppenderRef ref="transaction-rollingFileAppender" />
+            <!--<AppenderRef ref="STDOUT"/>-->
+        </Logger>
+
+        <Logger name="org.springframework.beans.factory" level="ERROR" additivity="false">
+            <AppenderRef ref="error-rollingFileAppender" />
+            <AppenderRef ref="transaction-rollingFileAppender" />
+        </Logger>
+        <Root level="DEBUG">
+            <AppenderRef ref="error-rollingFileAppender" />
+            <AppenderRef ref="transaction-rollingFileAppender"/>
+        </Root>
+    </Loggers>
+
+</Configuration>
