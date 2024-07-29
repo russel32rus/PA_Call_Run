@@ -92,6 +92,7 @@ class CustomUtils {
     public static Long batchId = 0
     static int tasksExecutedByCallerThreadCount=0
     public static final String RESTRUCT_STRATEGY_ALIAS = "PA_Restr"
+    public static final String PDN_STRATEGY_ALIAS = "PA_Pti"
     public static final String GLOBAL_PARAM_BATCH_STRATEGY_ALIAS = "BATCH_STRATEGY_ALIAS"
     public static final String GLOBAL_PARAM_BATCH_STRATEGY_SIGNATURE = "BATCH_STRATEGY_SIGNATURE"
     public static final String GLOBAL_PARAM_BATCH_STRATEGY_TRACE_FLAGS = "BATCH_STRATEGY_TRACE_FLAGS"
@@ -339,7 +340,9 @@ class CustomUtils {
     }
 
     static String getSmAliasFromStageCd(String stageCd) {
-        return "RESTRUCT".equalsIgnoreCase(stageCd) ? RESTRUCT_STRATEGY_ALIAS : getGlobalParam(GLOBAL_PARAM_BATCH_STRATEGY_ALIAS, true)
+        if (stageCd.containsIgnoreCase("PDN")) return PDN_STRATEGY_ALIAS
+        else if (stageCd.containsIgnoreCase("RESTRUCT")) return RESTRUCT_STRATEGY_ALIAS
+        else return getGlobalParam(GLOBAL_PARAM_BATCH_STRATEGY_ALIAS, true)
     }
 
     /**
@@ -1048,7 +1051,7 @@ class SmProcessingHelpers {
             waveId = rsCust.getInt("WAVE_ID")
             packGroupBy = rsCust.getLong("PACK_GROUP_BY")
             //Если CLD1, RESTRUCT или (MIN_REQ и packGroupBy = 0 (null)) то пересчитываем packGroupBy
-            if (((packGroupBy == null || packGroupBy ==0) && StageCdInt == 1) || (StageCdInt == 4 || StageCdInt == 25)) {
+            if (((packGroupBy == null || packGroupBy ==0) && StageCdInt == 1) || (StageCdInt == 4 || StageCdInt == 25 || StageCdInt == 28)) {
                 loadStrategy(smAlias)
                 executeInitCall(smAlias)
                 packGroupBy = packGroupByFromInitCall.get(smAlias)

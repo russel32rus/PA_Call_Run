@@ -28,7 +28,7 @@ import static ReadGlobalParams.*
 import static ExtBatchSaveResultData.*
 import static JsonProcessingHelpers.*
 
-static void main(String[] args) {
+public static void main(String[] args) {
 
   //Пишем настройки для работы DA, в теории не работает
   //System.setProperty("configDirs", "C:\\Users\\russe\\OneDrive\\Desktop\\PA_Call_Run\\env")
@@ -86,7 +86,7 @@ static void main(String[] args) {
 
   custIds = null
 
-  def StageCdList = ["MIN_REQ","BCS_CHECK", "PA_CALC", "CLD1", "CLD2", "RESTRUCT"]
+  def StageCdList = ["MIN_REQ","BCS_CHECK", "PA_CALC", "CLD1", "CLD2", "RESTRUCT", "PDN1", "PDN2"]
   stageCd = StageCdList[0].toString()
 
   swingBuilder1.edt {
@@ -271,6 +271,8 @@ public class PADown implements Runnable {
           case "CLD1": StageCdInt = 4; break
           case "CLD2": StageCdInt = 5; break
           case "RESTRUCT": StageCdInt = 25; break
+          case "PDN1": StageCdInt = 28; break
+          case "PDN2": StageCdInt = 29; break
           default: StageCdInt = 1
         }
         loadCustomerInfo(rccConn, customerId, StageCdInt, stageCd)
