@@ -33,6 +33,7 @@ public static void main(String[] args) {
   //Пишем настройки для работы DA, в теории не работает
   //System.setProperty("configDirs", "C:\\Users\\russe\\OneDrive\\Desktop\\PA_Call_Run\\env")
   System.setProperty("client.solution.home", System.getProperty("user.dir"))
+  //System.setProperty("user.language", "en")
   //System.setProperty("custId", "_")
 
   //Удаляем содержимое оутпута чтобы не забивалось
@@ -86,7 +87,7 @@ public static void main(String[] args) {
 
   custIds = null
 
-  def StageCdList = ["MIN_REQ","BCS_CHECK", "PA_CALC", "CLD1", "CLD2", "RESTRUCT", "PDN1", "PDN2"]
+  def StageCdList = ["MIN_REQ","BCS_CHECK", "PA_CALC", "CLD1", "CLD2", "RESTRUCT", "PDN1", "PDN_KBKI", "PDN2"]
   stageCd = StageCdList[0].toString()
 
   swingBuilder1.edt {
@@ -273,6 +274,7 @@ public class PADown implements Runnable {
           case "RESTRUCT": StageCdInt = 25; break
           case "PDN1": StageCdInt = 28; break
           case "PDN2": StageCdInt = 29; break
+          case "PDN_KBKI": StageCdInt = 30; break
           default: StageCdInt = 1
         }
         loadCustomerInfo(rccConn, customerId, StageCdInt, stageCd)
